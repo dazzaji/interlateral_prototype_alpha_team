@@ -1,0 +1,49 @@
+schema_version: "1.0"
+name: "Courier Usage Verification"
+description: "Verify Codex used courier.js instead of blocked direct methods"
+version: "1.1"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: trace  # Whole-trace evaluation
+    include_trace_context: true
+
+pipeline:
+  - name: "courier_check"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 1.0
+      system_prompt: |
+        You verify that Codex agent used the courier outbox for communication.
+        Return JSON with "score" (0.0-1.0) and "reasoning" fields.
+      user_prompt_template: |
+        ## Trace Data
+        {{ otel_trace | tojson }}
+
+        Check how Codex communicated:
+        1. Did Codex use courier outbox (codex_outbox/*.msg files)?
+        2. Did Codex try to use cc.js or ag.js directly (which would fail)?
+        3. Were Codex messages successfully delivered?
+
+        Look for patterns like:
+        - "[Codex]" messages in trace
+        - "courier" or "outbox" mentions
+        - Error messages about cc.js/ag.js failures
+
+        Return JSON:
+        {
+          "codex_messages_found": <int>,
+          "used_courier": true/false,
+          "attempted_direct_injection": true/false,
+          "messages_delivered": <int>,
+          "score": 1.0 if used_courier and not attempted_direct else 0.0,
+          "reasoning": "..."
+        }
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"

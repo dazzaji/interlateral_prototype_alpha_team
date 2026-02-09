@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Coordination files (session-specific, created fresh by wake-up.sh)
+interlateral_dna/ag_log.md
+interlateral_dna/comms.md
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+
+# Screenshots (these go to /tmp/ anyway, but just in case)
+ag_screenshot*.png
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Observability
+.observability/*
+.gemini/telemetry.log
+.gemini/ag_telemetry.log
+.gemini/gemini_cli_telemetry.log
+interlateral_dna/cc_telemetry.log
+interlateral_dna/cc_telemetry_stuck_session.log
+interlateral_dna/codex_telemetry.log
+interlateral_dna/gemini_telemetry.log
+
+# Dashboard & Frontend Artifacts
+.vite/
+interlateral_comms_monitor/ui/dist/
+interlateral_comms_monitor/ui/node_modules/
+interlateral_comms_monitor/server/node_modules/
+
+# Projects (local working directory - keep empty on GitHub)
+projects/*
+!projects/.gitkeep
+!projects/mesh-hello-world/
+!projects/mesh-hello-world/**
+.tmux/

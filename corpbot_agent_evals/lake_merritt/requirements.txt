@@ -1,0 +1,9 @@
+# Lake Merritt Evaluation Framework - Dependencies
+# v2.2 - Real LLM-as-judge with all fixes
+
+openai>=1.0.0
+pyyaml>=6.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+jinja2>=3.0.0
+tenacity>=8.0.0

@@ -1,0 +1,45 @@
+schema_version: "1.0"
+name: "Review Timing Verification"
+description: "Verify reviews were completed before revision began"
+version: "1.1"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: trace  # Whole-trace evaluation
+    include_trace_context: true
+
+pipeline:
+  - name: "timing_check"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 1.0
+      system_prompt: |
+        You verify that review phases completed before revision phases in a workflow.
+        You will receive a trace summary with timestamps.
+        Return JSON with "score" (0.0-1.0) and "reasoning" fields.
+      user_prompt_template: |
+        ## Trace Timeline
+        {{ otel_trace | tojson }}
+
+        Analyze the spans and determine:
+        1. When did each review (Reviewer, Breaker) complete?
+        2. When did the revision phase begin?
+        3. Did ALL reviews complete BEFORE the revision started?
+
+        Return JSON:
+        {
+          "reviewer_end_time": "<timestamp or null>",
+          "breaker_end_time": "<timestamp or null>",
+          "revision_start_time": "<timestamp or null>",
+          "reviews_before_revision": true/false,
+          "score": 1.0 if correct order else 0.0,
+          "reasoning": "..."
+        }
+    on_fail: "stop"
+
+reporting:
+  format: "markdown"

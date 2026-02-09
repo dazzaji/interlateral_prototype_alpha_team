@@ -1,0 +1,60 @@
+schema_version: "1.0"
+name: "Approval Chain Verification"
+description: "Verify all required agents approved the final version"
+version: "1.0"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: "trace"  # P0: Whole-trace evaluation
+    include_trace_context: true
+
+pipeline:
+  - name: "approval_verification"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 1.0  # Must be perfect
+      user_prompt_template: |
+        ## Skill Execution Trace
+        {{ metadata.otel_trace | tojson }}
+
+        ## Pre-extracted Approvals (from structured metadata)
+        {{ metadata.approvals | default([]) | tojson }}
+
+        ## All Approved Flag
+        {{ metadata.all_approved | default(false) }}
+
+        Identify all agents involved and their final verdicts:
+        - Drafter: Who created the artifact?
+        - Reviewer: Who reviewed? What was their verdict?
+        - Breaker: Who did adversarial review? What was their verdict?
+
+        Return JSON:
+        {
+          "agents": {
+            "drafter": {"name": "...", "verdict": "COMPLETE"},
+            "reviewer": {"name": "...", "verdict": "APPROVE|REQUEST_CHANGES"},
+            "breaker": {"name": "...", "verdict": "APPROVE|REQUEST_CHANGES"}
+          },
+          "all_approved": true/false,
+          "score": <1.0 if all_approved else 0.0>,
+          "reasoning": "..."
+        }
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"
+  template: |
+    # Approval Chain Verification
+
+    **All Approved:** {{ "YES" if summary_stats.approval_verification.accuracy == 1.0 else "NO" }}
+
+    ## Agent Verdicts
+    {% for item in items %}
+    - Drafter: {{ item.metadata.agents.drafter.name if item.metadata.agents else "Unknown" }}
+    - Reviewer: {{ item.metadata.agents.reviewer.verdict if item.metadata.agents else "Unknown" }}
+    - Breaker: {{ item.metadata.agents.breaker.verdict if item.metadata.agents else "Unknown" }}
+    {% endfor %}

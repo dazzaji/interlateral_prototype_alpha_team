@@ -1,0 +1,70 @@
+schema_version: "1.0"
+name: "Revision Addressed Check"
+description: "Verify that Breaker issues were addressed in revisions"
+version: "1.0"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: "trace"  # P0: Whole-trace evaluation
+    input_field: "attributes.content"
+    output_field: "attributes.content"
+    include_trace_context: true
+    required_metadata:
+      - "breaker_review"
+      - "change_log"
+
+pipeline:
+  - name: "revision_completeness"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 0.7
+      system_prompt: |
+        You are evaluating whether revision requests were properly addressed in a
+        tri-agent skill execution. You will receive Breaker feedback and a Change Log.
+      user_prompt_template: |
+        ## Breaker Review (Failures Identified)
+        {{ metadata.breaker_review | default('No breaker review found') }}
+
+        ## Change Log (Revisions Made)
+        {{ metadata.change_log | default('No change log found') }}
+
+        For each FAILURE SCENARIO in the Breaker review, determine:
+        1. ADDRESSED - The issue was fixed or hardened
+        2. DECLINED - The issue was declined with explicit reasoning
+        3. IGNORED - The issue was not mentioned in the change log
+
+        Return JSON:
+        {
+          "failures": [
+            {"id": 1, "status": "ADDRESSED|DECLINED|IGNORED", "evidence": "..."}
+          ],
+          "addressed_count": <int>,
+          "declined_count": <int>,
+          "ignored_count": <int>,
+          "score": <0.0-1.0>,
+          "reasoning": "..."
+        }
+
+        Score = (addressed + declined_with_reason) / total_failures
+        IGNORED issues reduce the score significantly.
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"
+  template: |
+    # Revision Addressed Evaluation
+
+    **Score:** {{ summary_stats.revision_completeness.average_score | round(2) }}
+    **Passed:** {{ summary_stats.revision_completeness.passed }} / {{ summary_stats.revision_completeness.total }}
+
+    ## Details
+    {% for item in items %}
+    ### {{ item.id }}
+    - Status: {{ "PASS" if item.scores[0].passed else "FAIL" }}
+    - Score: {{ item.scores[0].numeric_score }}
+    - Reasoning: {{ item.scores[0].reasoning }}
+    {% endfor %}

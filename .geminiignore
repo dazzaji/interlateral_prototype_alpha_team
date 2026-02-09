@@ -1,0 +1,61 @@
+# Gemini CLI Ignore Configuration
+# ================================
+# This file controls what Gemini CLI can and cannot read.
+#
+# IMPORTANT: Gemini CLI respects .gitignore by default, which blocks
+# access to gitignored directories like projects/. This file overrides
+# those restrictions for agent work.
+#
+# Syntax: Same as .gitignore, but negations (!) ALLOW access
+# ================================
+
+# ALLOW all project working directories (even if gitignored)
+!projects/
+!projects/**
+
+# ALLOW observability data
+!.observability/
+!.observability/**
+
+# ALLOW agent configuration
+!.agent/
+!.agent/**
+!.claude/
+!.claude/**
+!.codex/
+!.codex/**
+!.gemini/
+!.gemini/**
+
+# ALLOW artifacts
+!artifacts/
+!artifacts/**
+
+# ALLOW dev plan
+!dev_plan/
+!dev_plan/**
+
+# ALLOW interlateral_dna (agent coordination)
+!interlateral_dna/
+!interlateral_dna/**
+
+# ALLOW dashboard
+!interlateral_comms_monitor/
+!interlateral_comms_monitor/**
+
+# ================================
+# DENY sensitive files (security)
+# ================================
+.env
+.env.local
+.env.*.local
+**/credentials*
+**/secrets*
+**/*.key
+**/*.pem
+
+# DENY heavy binary/build artifacts
+node_modules/
+dist/
+build/
+*.tgz

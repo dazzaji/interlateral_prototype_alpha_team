@@ -1,0 +1,44 @@
+schema_version: "1.0"
+name: "Token Cost Analysis"
+description: "Calculate total token usage for a skill execution"
+version: "1.1"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: trace  # Whole-trace evaluation
+    include_trace_context: true
+
+pipeline:
+  - name: "token_count"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 0.0  # Always pass - this is informational
+      system_prompt: |
+        You analyze token usage in skill execution traces.
+        Return JSON with "score" (always 1.0 for informational) and "reasoning" fields.
+      user_prompt_template: |
+        ## Trace Data
+        {{ otel_trace | tojson }}
+
+        Extract token counts from all spans. Look for:
+        - Token counts in span attributes
+        - Usage data in metadata
+        - Estimate from content length if no explicit counts (assume ~4 chars per token)
+
+        Return JSON:
+        {
+          "spans_analyzed": <int>,
+          "explicit_token_counts": [{"span": "...", "tokens": <int>}],
+          "estimated_tokens": <int>,
+          "total_tokens": <int>,
+          "score": 1.0,
+          "reasoning": "..."
+        }
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"

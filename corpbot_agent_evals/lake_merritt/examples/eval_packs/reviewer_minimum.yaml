@@ -1,0 +1,57 @@
+schema_version: "1.0"
+name: "Reviewer Minimum Suggestions"
+description: "Verify Reviewer provided at least N suggestions"
+version: "1.0"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: "trace"  # P0: Whole-trace evaluation
+    input_field: "attributes.content"
+    include_trace_context: true
+
+pipeline:
+  - name: "suggestion_count"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 0.7
+      user_prompt_template: |
+        ## Reviewer Feedback (from structured metadata)
+        {{ metadata.reviewer_suggestions | default('No reviewer suggestions found') }}
+
+        ## Full Trace Context
+        {{ metadata.otel_trace | tojson }}
+
+        Count the number of distinct SUGGESTIONS provided.
+        A suggestion is a specific, actionable recommendation for improvement.
+
+        Return JSON:
+        {
+          "suggestions": [
+            {"id": 1, "text": "...", "is_actionable": true/false}
+          ],
+          "actionable_count": <int>,
+          "total_count": <int>,
+          "score": <0.0-1.0>,
+          "reasoning": "..."
+        }
+
+        Score = min(actionable_count / 3, 1.0)  // 3+ suggestions = perfect score
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"
+  template: |
+    # Reviewer Minimum Suggestions Evaluation
+
+    **Score:** {{ summary_stats.suggestion_count.average_score | round(2) }}
+    **Threshold:** 3 suggestions minimum
+
+    ## Details
+    {% for item in items %}
+    - Score: {{ item.scores[0].numeric_score }}
+    - Reasoning: {{ item.scores[0].reasoning }}
+    {% endfor %}

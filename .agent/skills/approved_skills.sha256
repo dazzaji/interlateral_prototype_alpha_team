@@ -1,0 +1,16 @@
+# Approved Skills Manifest
+# HyperDomo Skill Security - Integrity Verification
+#
+# This file contains SHA256 hashes of approved project skills.
+# HyperDomo will reject any skill not listed here (if integrity_check.enabled=true).
+#
+# To add a new skill:
+#   1. Create the skill file
+#   2. Run: shasum -a 256 path/to/SKILL.md
+#   3. Add the hash + path to this file
+#   4. Get human approval
+#
+# Generated: 2026-01-26
+
+b948fb1177afd7f4340d2594bcdf55da624750e16cae796eafe6c0efa4508503  hyperdomo/SKILL.md
+df610f2e250de9fb415599ed5a21f12d16b969df822e6350e2ee758e7ec9db1b  test-4-series/SKILL.md

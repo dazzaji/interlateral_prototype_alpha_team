@@ -1,0 +1,50 @@
+schema_version: "1.0"
+name: "Decline Percentage Analysis"
+description: "Calculate percentage of Breaker issues that were declined vs addressed"
+version: "1.1"
+
+ingestion:
+  type: "generic_otel"
+  config:
+    evaluation_mode: trace  # Whole-trace to get full context
+    include_trace_context: true
+
+pipeline:
+  - name: "decline_analysis"
+    scorer: "llm_judge"
+    config:
+      provider: "openai"
+      model: "gpt-4o"
+      temperature: 0.0
+      threshold: 0.5  # Informational - any value is valid
+      system_prompt: |
+        You analyze how Breaker issues were handled in a revision cycle.
+        Return JSON with "score" and "reasoning" fields.
+      user_prompt_template: |
+        ## Breaker Review
+        {{ breaker_review }}
+
+        ## Change Log
+        {{ change_log }}
+
+        Categorize each Breaker issue:
+        - ADDRESSED: Fixed in the revision
+        - DECLINED: Explicitly declined with reasoning
+        - IGNORED: Not mentioned
+
+        Return JSON:
+        {
+          "issues": [
+            {"id": 1, "status": "ADDRESSED|DECLINED|IGNORED", "evidence": "..."}
+          ],
+          "addressed_count": <int>,
+          "declined_count": <int>,
+          "ignored_count": <int>,
+          "decline_percentage": <float 0-100>,
+          "score": 1.0 - (ignored_count / total) if total > 0 else 1.0,
+          "reasoning": "..."
+        }
+    on_fail: "continue"
+
+reporting:
+  format: "markdown"

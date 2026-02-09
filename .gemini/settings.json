@@ -1,0 +1,7 @@
+{
+  "telemetry": {
+    "enabled": true,
+    "outfile": ".gemini/telemetry.log",
+    "logPrompts": true
+  }
+}
