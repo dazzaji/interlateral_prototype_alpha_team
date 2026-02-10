@@ -1,4 +1,4 @@
-# Skills Index (Quick Reference)
+# Skills Index (Quick Reference) 
 
 Canonical source-of-truth for skills:
 `.agent/skills/`
