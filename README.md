@@ -1,4 +1,4 @@
-# Interlateral Multi-Agent Mesh Template  
+# Interlateral Multi-Agent Mesh Template   
 
 ___
 

@@ -1,4 +1,4 @@
-# OpenAI Codex CLI on macOS Terminal (Feb 2026) — complete, accurate, Pro-plan friendly
+# OpenAI Codex CLI on macOS Terminal (Feb 2026) — complete, accurate, Pro-plan friendly 
 
 > **Updated:** 2026-02-05 for **Codex CLI 0.98.0** and **gpt-5.3-codex**
 

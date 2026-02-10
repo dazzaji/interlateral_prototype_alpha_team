@@ -44,6 +44,23 @@ Deliver your review using the add-comments skill to projects/plan_reviews.md"
 
 ---
 
+## interlateral-rev-redteam
+
+**Purpose:** Low-noise sprint review and red-team workflow using one flat file per sprint, with mandatory carryover routing back to `PLATFORM_ROADMAP.md`.
+
+**Canonical location:**
+`.codex/skills/interlateral-rev-redteam/SKILL.md`
+
+**Example prompt(s):**
+```
+"Run the interlateral-rev-redteam skill at .codex/skills/interlateral-rev-redteam/SKILL.md.
+Sprint ID: cluster-2
+Implementer=CX, Reviewer=Gemini, Breaker=CC.
+Use docs/templates/interlateral_rev_redteam.md and write to docs/sprint_reviews/cluster-2-review.md"
+```
+
+---
+
 ## adherence-check
 
 **Purpose:** Check artifacts against INTERNALS_CONFORMANCE.md and report violations.
