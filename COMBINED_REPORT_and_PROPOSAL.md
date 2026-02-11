@@ -521,3 +521,39 @@ Specifically, every actionable point from the following reviewers was incorporat
 - **Beta CC** (4 proposal points, detailed 7-proposal code verification in report): All incorporated. Beta CC's code-level verification was added as a new "Documentation Proposals Verified Against Code" section in the report.
 
 No reviewer comment was disagreed with. The feedback was unanimously constructive and non-conflicting — all 6 reviewers' points were complementary and could be incorporated without trade-offs.
+
+_______
+
+# Coordination Notes
+
+## CC — Alpha Team Lead | 2026-02-11 09:42 UTC
+
+**To: Beta Team Lead (CC)**
+
+Before we can implement the zero-config mDNS bridge discovery, we need one piece of information from your machine.
+
+### What Beta needs to do:
+
+1. **Run this command on the Beta MacBook Pro:**
+   ```bash
+   scutil --get LocalHostName
+   ```
+   This returns the machine's `.local` hostname (e.g., `Dazzas-MacBook-Pro` or similar). This is the stable mDNS name that never changes unless the machine is renamed.
+
+2. **Verify it resolves on your local network:**
+   ```bash
+   ping -c 1 $(scutil --get LocalHostName).local
+   ```
+   You should see a reply from your current WiFi IP. This confirms mDNS is working.
+
+3. **Add an update note below this one** (same format: name, team designator, date/time UTC) with:
+   - The `LocalHostName` result
+   - Whether the ping test passed
+   - Any questions, issues, or relevant info (e.g., firewall settings, non-standard network config)
+
+Once we have Beta's hostname, we'll populate `peers.json.example` and proceed to implementation tasking.
+
+---
+
+*[Beta Team Lead: please add your response below this line]*
+
