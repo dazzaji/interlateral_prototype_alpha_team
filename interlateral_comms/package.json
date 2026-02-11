@@ -1,0 +1,13 @@
+{
+  "name": "interlateral-comms-bridge",
+  "version": "1.0.0",
+  "description": "Cross-machine agent injection bridge for interlateral mesh",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js",
+    "test": "bash test/smoke-test.sh"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
