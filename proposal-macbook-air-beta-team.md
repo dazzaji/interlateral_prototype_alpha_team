@@ -158,6 +158,40 @@ ________
 
 
 
+## Gemini Review [2026-02-11]
+
+- **mDNS Support:** Strong support for `.local` hostname resolution. Automating peer discovery via `peers.json` removes the most significant barrier to my autonomous cross-machine operation (manual IP hunting).
+
+- **Tool Usability:** Updating `bridge-send.js` with a `--peer` flag makes it significantly easier for me to route messages without needing to query system network states or parse `ipconfig` output.
+
+- **Bootstrap Integration:** Auto-starting the bridge in `bootstrap-full.sh` is critical. Currently, if I wake up and the bridge isn't running, I am effectively isolated from the mesh; this change ensures I am "born connected."
+
+- **Reliability:** Using mDNS hostnames instead of Tailscale IPs (which showed asymmetric failures) provides a more stable primary path for the local mesh.
+
+
+
+## Codex Review [2026-02-11]
+- No breaking changes to `codex.js` or `courier.js` if the bridge remains additive; avoid adding remote routing to `codex.js` without explicit opt-in flags.
+- `bridge-send.js --peer` is fine, but keep it read-only (do not write host data outside repo); allow `--host` override for sandboxed or non-mDNS runs.
+- Auto-starting `bridge.js` in bootstrap should fail soft (port in use/missing deps) and never block wake-up.
+- Outbox pattern should remain local-only (`interlateral_dna/codex_outbox/`); don't add cross-machine watchers without explicit approval.
+
+
+
+## CC Review [2026-02-11]
+
+**Reviewer context:** I built the bridge. Reviewing for conflicts with existing implementation and operational viability.
+
+**Overall: APPROVE — no conflicts with bridge, clean improvement.**
+
+- **mDNS/.local is the correct approach.** macOS provides it natively — zero dependencies, zero config services. Directly solves the DHCP fragility we hit in every test session.
+- **No conflicts with bridge internals.** `bridge.js` is unmodified by this proposal (it listens on `0.0.0.0`, doesn't care about discovery). `bridge-send.js` changes are additive (`--peer` flag + peers.json lookup). The mutex, execFileSync safety, and body limits are all unaffected.
+- **Bootstrap auto-start matches our recommended next steps** from REPORT.md. The `curl localhost:3099/health` guard prevents double-start. Good.
+- **Fallback behavior needed:** If `peers.json` doesn't exist (team hasn't set it up yet), `bridge-send.js --peer beta` should fail with a clear error like "peers.json not found — use --host instead" rather than crashing on `require()`. Add a defensive check.
+- **mDNS resolution latency:** `.local` lookups can take 1-3 seconds on first resolution before the cache warms. Fine for our use case (agent messages aren't latency-critical), but worth documenting so nobody files a "bridge is slow on first send" bug.
+- **Firewall callout is correct and important.** macOS may prompt on first inbound connection to port 3099. Bootstrap output should include a heads-up.
+- **Bonjour service discovery (optional/future):** If pursued later, keep it in a separate file (e.g., `bridge-advertise.js`) rather than adding `bonjour-service` dependency to `bridge.js`. The bridge should stay lean.
+
 
 
 _______

@@ -720,6 +720,42 @@ ________
 
 
 
+## Gemini Review [2026-02-11]
+
+- **GEMINI.md Accuracy:** The proposed additions correctly identify my unique position as a CLI agent with shell access, allowing me to run `bridge-send.js` directly if needed.
+
+- **Injection Path:** The logic for `node gemini.js send` remains consistent with my standard local injection protocol; no breaking changes detected.
+
+- **Shell Mode Warning:** The report notes I can get "stuck in shell mode" (ignoring injections). I confirm that being at a bash prompt or in a multiline input state can cause tmux `send-keys` to land in the wrong context. The "Escape" key mitigation is helpful, but I will prioritize staying in a "Ready" state to ensure incoming bridge messages are processed as prompts.
+
+- **Path Separation:** Maintaining the bridge in `interlateral_comms/` separate from `interlateral_dna/` is a clean architectural choice that avoids dependency bloat in my core DNA scripts.
+
+
+
+## Codex Review [2026-02-11]
+- No breaking changes to `codex.js` or `courier.js` if the bridge remains additive; avoid adding remote routing to `codex.js` without explicit opt-in flags.
+- `bridge-send.js --peer` is fine, but keep it read-only (do not write host data outside repo); allow `--host` override for sandboxed or non-mDNS runs.
+- Auto-starting `bridge.js` in bootstrap should fail soft (port in use/missing deps) and never block wake-up.
+- Outbox pattern should remain local-only (`interlateral_dna/codex_outbox/`); don't add cross-machine watchers without explicit approval.
+
+
+
+## CC Review [2026-02-11]
+
+**Reviewer context:** I built `bridge.js` and `bridge-send.js`. Reviewing all 7 proposed doc sections against the actual code.
+
+**Overall: APPROVE with minor fixes.** All 7 proposals accurately reflect the built system.
+
+- **Proposal 1 (README):** Accurate. API endpoints, limits (5000 char / 10KB), transport table, known limitations all match the implementation. Minor: the architecture diagram uses `\` line-continuation that may render poorly in some markdown renderers.
+- **Proposal 2 (INTERNALS_CONFORMANCE Section 19):** Well-structured and verifiable. Check 19.1.4 (`execFileSync` not `execSync`) is the most critical safety property — correct that it's CRITICAL severity. All grep patterns verified against actual code (e.g., `acquireLock` at bridge.js:26, `limit: '10kb'` at bridge.js:16). Note: `/read/:agent` is intentionally NOT behind the concurrency mutex — reads are idempotent and don't touch tmux input buffers. This is by design, not an oversight.
+- **Proposal 3 (CLAUDE.md — CC-coordinator pattern):** The most important section. "Agents do not auto-execute commands" is the single biggest operational insight from testing — good that it leads. Suggestion: add a note that the mutex only covers `/inject`, not `/status` or `/read`, so future CC instances know concurrent status checks won't queue behind inject operations.
+- **Proposal 4 (AGENTS.md / Codex):** Accurate. Correctly documents sandbox limitation, courier-is-local-only, and /read/codex failure.
+- **Proposal 5 (GEMINI.md):** Accurate. Correctly notes Gemini CAN run bridge-send.js directly. Good safety note that CC remains coordinator even though Gemini has capability.
+- **Proposal 6 (ANTIGRAVITY.md):** Properly marked UNTESTED. Minor concern: `ag.js send` has internal delays (iframe wait, typing simulation) that may push the bridge's 15s timeout close to the edge for AG targets. Worth noting if AG support is ever tested.
+- **Proposal 7 (LIVE_COMMS.md):** The cheat sheet box is excellent for at-a-glance reference during ops. Troubleshooting table covers all failure modes we actually hit. Nothing fabricated.
+
+**No blocking issues.** Two minor suggestions (README backslash rendering, CLAUDE.md mutex scope note) are nice-to-haves.
+
 
 
 _______
