@@ -1,0 +1,15 @@
+{
+  "self": "alpha",
+  "peers": {
+    "alpha": {
+      "host": "Dazzas-MacBook-Air.local",
+      "port": 3099,
+      "fallback_ip": "192.168.8.124"
+    },
+    "beta": {
+      "host": "AIs-MacBook-Pro.local",
+      "port": 3099,
+      "fallback_ip": "172.20.10.5"
+    }
+  }
+}

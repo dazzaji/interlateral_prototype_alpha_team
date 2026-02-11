@@ -51,6 +51,9 @@ interlateral_dna/cc_telemetry_stuck_session.log
 interlateral_dna/codex_telemetry.log
 interlateral_dna/gemini_telemetry.log
 
+# Cross-machine bridge (machine-specific config)
+interlateral_comms/peers.json
+
 # Dashboard & Frontend Artifacts
 .vite/
 interlateral_comms_monitor/ui/dist/
