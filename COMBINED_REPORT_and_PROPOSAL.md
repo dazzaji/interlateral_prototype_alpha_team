@@ -3,7 +3,7 @@
 **Date:** 2026-02-11
 **Author:** CC (Alpha Team), revised by CC2
 **Status:** PROPOSAL — revised per 6 reviewer comments (3 Alpha + 3 Beta)
-**Version:** 3 — all actionable review feedback incorporated
+**Version:** 3.1 — updated with confirmed hostnames and iPhone hotspot findings (2026-02-11)
 
 ---
 
@@ -31,7 +31,7 @@ macOS has **built-in mDNS/Bonjour** support. Every Mac advertises a `.local` hos
 | Machine | .local Hostname | Resolves To |
 |---------|----------------|-------------|
 | Alpha (MacBook Air) | `Dazzas-MacBook-Air.local` | Current WiFi IP (e.g., 192.168.8.124 today, something else tomorrow) |
-| Beta (MacBook Pro) | `<Beta-LocalHostName>.local` | Current WiFi IP (e.g., 192.168.8.216 today, something else tomorrow) |
+| Beta (MacBook Pro) | `AIs-MacBook-Pro.local` | Current WiFi IP (e.g., 172.20.10.5 on hotspot, 192.168.8.216 on home WiFi) |
 
 The `.local` hostname is stable across reboots and network changes. Only the underlying IP changes, and mDNS handles the resolution transparently.
 
@@ -49,9 +49,9 @@ New file: `interlateral_comms/peers.json.example` (checked into repo)
       "fallback_ip": "192.168.8.124"
     },
     "beta": {
-      "host": "<Beta-LocalHostName>.local",
+      "host": "AIs-MacBook-Pro.local",
       "port": 3099,
-      "fallback_ip": "192.168.8.216"
+      "fallback_ip": "172.20.10.5"
     }
   }
 }
@@ -64,7 +64,13 @@ Add to `.gitignore`:
 interlateral_comms/peers.json
 ```
 
-**Fallback IP field:** Each peer entry includes an optional `"fallback_ip"` field. If `.local` resolution fails or times out, `bridge-send.js` falls back to the raw IP. This handles edge cases where router configurations or guest networks block multicast/mDNS traffic.
+**Fallback IP field:** Each peer entry includes a `"fallback_ip"` field. This is a **first-class field**, not optional. `bridge-send.js` uses the following resolution order when `--peer` is specified:
+
+1. Try `.local` hostname resolution (2-3 second timeout)
+2. If `.local` fails → use `fallback_ip`
+3. If no `fallback_ip` → fail with clear error
+
+This handles networks that block multicast/mDNS traffic, including **iPhone hotspots and tethered connections** (confirmed: both Alpha and Beta tested on iPhone hotspot 2026-02-11 — mDNS fails, direct IP works).
 
 **Missing peers.json handling:** If `peers.json` does not exist (team hasn't run setup yet), `bridge-send.js --peer beta` will fail with a clear error message: `"peers.json not found — run setup-peers.sh or use --host <ip> instead"` rather than crashing on `require()`.
 
@@ -80,7 +86,7 @@ Proposed usage (stable):
 node bridge-send.js --peer beta --target codex --msg "hello"
 ```
 
-The script reads `peers.json`, looks up the peer's `.local` hostname, and sends the request. The `--host` flag still works as a manual override for edge cases (sandboxed or non-mDNS environments).
+The script reads `peers.json`, looks up the peer's `.local` hostname, and attempts resolution. If mDNS resolution fails or times out (2-3s), it automatically falls back to the peer's `fallback_ip`. The `--host` flag still works as a manual override that bypasses all peer lookup (for sandboxed or ad-hoc environments).
 
 **Precedence rule:** If both `--host` and `--peer` are provided, `--host` takes precedence and `--peer` is ignored. If `--peer` is provided but the peer name is not found in `peers.json`, the script fails fast with an error: `"Unknown peer '<name>' — check peers.json"`. This prevents silent misrouting during incident response.
 
@@ -227,8 +233,9 @@ Machine A (Alpha)                          Machine B (Beta)
 4. CC checks: curl Beta.local:3099/health  4. CC checks: curl Alpha.local:3099/health
    ├─ timeout=5s (mDNS cold start)           ├─ timeout=5s (mDNS cold start)
    └─ 1 retry with 3s backoff                └─ 1 retry with 3s backoff
-5. mDNS resolves → current WiFi IP         5. mDNS resolves → current WiFi IP
-   (or fallback_ip if mDNS fails)            (or fallback_ip if mDNS fails)
+5. Resolution:                              5. Resolution:
+   WiFi/LAN → mDNS resolves .local            WiFi/LAN → mDNS resolves .local
+   Hotspot  → mDNS fails → fallback_ip        Hotspot  → mDNS fails → fallback_ip
 6. ✓ Cross-machine link established        6. ✓ Cross-machine link established
 7. Agents work, using --peer for sends     7. Agents work, using --peer for sends
    (resolved address logged each send)       (resolved address logged each send)
@@ -255,11 +262,17 @@ No IP hunting. No manual steps. Both humans just run `wake-up.sh` and the machin
 
 ## Constraints and Limitations
 
-1. **Same WiFi required.** mDNS only works on the same local network. If Alpha and Beta are on different networks (e.g., different buildings), this won't work — you'd need Tailscale or a relay.
-2. **Beta hostname must be discovered once.** Run `setup-peers.sh` on each machine to automate this. This is a one-time step per machine, not per session.
-3. **Firewall.** macOS firewall must allow incoming connections on port 3099. If a machine has strict firewall rules, the bridge won't be reachable even with correct mDNS resolution. Bootstrap output now includes a firewall heads-up to surface this early.
-4. **mDNS on guest/restricted networks.** Some router configurations or guest networks block multicast/mDNS traffic. The `fallback_ip` field in `peers.json` provides an escape hatch for these environments.
-5. **Codex sandbox constraints.** `codex.js` and `courier.js` remain unmodified. Codex cannot use `.js` scripts directly due to sandbox restrictions. The bridge is additive-only; the outbox pattern stays local-only.
+1. **Same network required (WiFi or hotspot).** Both machines must be on the same local network. If on different networks (e.g., different buildings), use Tailscale or a relay.
+2. **mDNS requires multicast-capable network.** mDNS/Bonjour `.local` resolution works on standard WiFi/LAN but **does NOT work on iPhone hotspots or tethered connections** (confirmed 2026-02-11: both Alpha and Beta fail to resolve `.local` hostnames on iPhone Personal Hotspot `/28` subnet). The `fallback_ip` field in `peers.json` handles this — `bridge-send.js` auto-falls back to direct IP when mDNS fails.
+3. **Network environment transport tiers:**
+   | Network Type | mDNS (.local) | Direct IP | Notes |
+   |-------------|---------------|-----------|-------|
+   | Shared WiFi / Office LAN | Works | Works | Primary target environment |
+   | iPhone Hotspot / Tethered | **Fails** | Works | Use `fallback_ip`; IPs change on reconnect |
+   | Different networks | N/A | N/A | Use Tailscale (with known Alpha→Beta asymmetry caveat) |
+4. **Hostnames confirmed and stable.** Alpha: `Dazzas-MacBook-Air`, Beta: `AIs-MacBook-Pro`. These only change if a machine is renamed. One-time discovery via `setup-peers.sh`.
+5. **Firewall.** macOS firewall must allow incoming connections on port 3099. Bootstrap output includes a firewall heads-up.
+6. **Codex sandbox constraints.** `codex.js` and `courier.js` remain unmodified. Codex cannot use `.js` scripts directly due to sandbox restrictions. The bridge is additive-only; the outbox pattern stays local-only.
 
 ---
 
