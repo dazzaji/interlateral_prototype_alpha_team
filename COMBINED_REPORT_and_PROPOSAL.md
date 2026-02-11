@@ -3,7 +3,7 @@
 **Date:** 2026-02-11
 **Author:** CC (Alpha Team), revised by CC2
 **Status:** PROPOSAL — revised per 6 reviewer comments (3 Alpha + 3 Beta)
-**Version:** 3.1 — updated with confirmed hostnames and iPhone hotspot findings (2026-02-11)
+**Version:** 3.2 — added --cross-team flag, cross-team-comms naming, documentation distributed to all target files (2026-02-11)
 
 ---
 
@@ -516,6 +516,21 @@ Beta CC reviewed all 7 proposed documentation additions against the actual bridg
 - **Added mutex scope clarification**: `/inject` is mutex-protected; `/read` and `/status` are not (by design — idempotent operations). Driven by: Beta CC review point 2 (INTERNALS_CONFORMANCE and CLAUDE.md notes).
 - **Added `ag.js` timeout concern** in both "What Remains to Be Tested" table and agent injection section. Driven by: Beta CC review point 3 (Proposal 6 — ANTIGRAVITY.md).
 - **Added same-agent cross-machine pairs** to "What Remains to Be Tested" table (CC↔CC, CX↔CX, GM↔GM rows). Driven by: Alpha CC review point 1.
+
+## Post-Implementation Changes (v3.1 → v3.2)
+
+- **Adopted "cross-team-comms" as the user-facing name** for the multi-machine bridge capability. All documentation uses "cross-team-comms"; code and filenames remain unchanged (`interlateral_comms/`, `bridge.js`, etc.). Driven by: principal direction.
+- **Added `--cross-team` flag to `wake-up.sh`** — cross-team-comms (bridge auto-start + peer health checks) is now **opt-in, default OFF**. Normal single-machine sessions skip bridge entirely, avoiding unnecessary overhead, latency, and token cost. Driven by: principal feedback that most sessions are single-team and the bridge complexity is irrelevant when not collaborating cross-machine.
+- **Bootstrap steps 6-7 gated behind `CROSS_TEAM=true`** — `bootstrap-full.sh` only runs bridge auto-start and peer health checks when the environment variable is set (passed through from `wake-up.sh --cross-team`). When skipped, steps report "SKIPPED (use --cross-team to enable)".
+- **Updated `first-time-setup.sh`** — added `interlateral_comms` npm install (step 3d), `peers.json.example` → `peers.json` copy (step 3e), and verification checks for both.
+- **Added cross-team-comms documentation to 7 files:**
+  - `LIVE_COMMS.md` — full cross-team route table and cheat sheet
+  - `README.md` — overview, quick start, repo structure update
+  - `CLAUDE.md` — CC coordinator pattern, resolution order, constraints
+  - `AGENTS.md` — Codex cross-team constraints (sandbox, /read gap)
+  - `GEMINI.md` — Gemini can run bridge-send but CC coordinates
+  - `ANTIGRAVITY.md` — AG untested status, timeout concern
+  - `INTERNALS_CONFORMANCE.md` — Section 19: bridge conformance checks (safety, client, bootstrap, config, operational constraints, code locations)
 
 ---
 ---

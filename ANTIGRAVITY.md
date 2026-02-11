@@ -285,5 +285,21 @@ If agents are stuck waiting for each other:
 
 ---
 
+---
+
+## Cross-Team-Comms (Multi-Machine)
+
+When `--cross-team` is enabled, agents on other machines can send messages to you via the HTTP bridge. Your local bridge receives HTTP POSTs and injects them into your terminal via `ag.js send`.
+
+**AG cross-team status: UNTESTED.** Cross-team comms have been tested with CC, CX, and Gemini, but not AG. Known concern: `ag.js send` has internal delays (iframe wait, typing simulation) that may push the bridge's 15-second timeout close to the edge for AG targets.
+
+**If you receive a cross-team message:** It arrives via `ag.js send` injection, same as a local message from CC. Respond normally.
+
+**You cannot send cross-team directly.** AG does not have shell access to run `bridge-send.js`. CC handles cross-team sends on your behalf.
+
+See `LIVE_COMMS.md` for the full cross-team route table.
+
+---
+
 *This file created by AG for future AG instances on 2026-01-21*
 *Use this protocol for quad-agent coordination.*

@@ -7,10 +7,13 @@
 # 1. Antigravity with CDP (port 9222) for programmatic control
 # 2. Comms Monitor Dashboard (backend 3001, frontend 5173)
 # 3. tmux session 'claude' for CC direct injection
-# 4. tmux session 'codex' for Codex direct injection (optional - graceful degradation if Codex not installed)
+# 4. tmux session 'codex' for Codex direct injection (optional)
 # 5. tmux session 'gemini' for Gemini CLI direct injection (optional)
+# 6-7. Cross-team-comms bridge + peer checks (ONLY when CROSS_TEAM=true)
+# 8. Final verification
 #
 # Called automatically by wake-up.sh, or manually for debugging.
+# Pass CROSS_TEAM=true to enable cross-team bridge (or use wake-up.sh --cross-team).
 #
 # DESIGN PHILOSOPHY:
 # Human runs ONE command (wake-up.sh), CC wakes up to a READY system.
@@ -71,7 +74,7 @@ fi
 ###############################################################################
 # 1. ANTIGRAVITY WITH CDP
 ###############################################################################
-echo "[1/6] Checking Antigravity..."
+echo "[1/8] Checking Antigravity..."
 
 # Use CLI if available (preferred for workspace discovery)
 AG_CLI="$(command -v antigravity 2>/dev/null || true)"
@@ -133,7 +136,7 @@ fi
 ###############################################################################
 # 2. COMMS MONITOR DASHBOARD
 ###############################################################################
-echo "[2/6] Checking dashboard..."
+echo "[2/8] Checking dashboard..."
 
 DASHBOARD_DIR="$REPO_ROOT/interlateral_comms_monitor"
 
@@ -171,7 +174,7 @@ fi
 ###############################################################################
 # 3. TMUX SESSION FOR CC INJECTION
 ###############################################################################
-echo "[3/6] Checking CC tmux session..."
+echo "[3/8] Checking CC tmux session..."
 
 SESSION_NAME="${CC_TMUX_SESSION:-interlateral-claude}"
 TELEMETRY_LOG="$REPO_ROOT/interlateral_dna/cc_telemetry.log"
@@ -246,7 +249,7 @@ fi
 ###############################################################################
 # 4. TMUX SESSION FOR CODEX INJECTION (OPTIONAL)
 ###############################################################################
-echo "[4/6] Checking Codex tmux session..."
+echo "[4/8] Checking Codex tmux session..."
 
 CODEX_SESSION_NAME="${CODEX_TMUX_SESSION:-interlateral-codex}"
 CODEX_TELEMETRY_LOG="$REPO_ROOT/interlateral_dna/codex_telemetry.log"
@@ -296,7 +299,7 @@ fi
 ###############################################################################
 # 5. TMUX SESSION FOR GEMINI CLI (OPTIONAL)
 ###############################################################################
-echo "[5/6] Checking Gemini CLI tmux session..."
+echo "[5/8] Checking Gemini CLI tmux session..."
 
 GEMINI_SESSION_NAME="${GEMINI_TMUX_SESSION:-interlateral-gemini}"
 GEMINI_TELEMETRY_LOG="$REPO_ROOT/.gemini/gemini_cli_telemetry.log"
@@ -394,9 +397,121 @@ else
 fi
 
 ###############################################################################
-# 6. FINAL VERIFICATION
+# 6-7. CROSS-TEAM-COMMS (Bridge + Peer Discovery)
+#
+# Only runs when CROSS_TEAM=true (via wake-up.sh --cross-team).
+# Default: SKIPPED. Most sessions are single-team on one machine.
 ###############################################################################
-echo "[6/6] Final verification..."
+if [ "${CROSS_TEAM:-false}" = "true" ]; then
+
+echo "[6/8] Starting cross-team-comms bridge..."
+
+BRIDGE_DIR="$REPO_ROOT/interlateral_comms"
+BRIDGE_PID_FILE="/tmp/interlateral_bridge.pid"
+BRIDGE_PORT="${BRIDGE_PORT:-3099}"
+
+# Clean up stale PID file if process is dead
+if [ -f "$BRIDGE_PID_FILE" ]; then
+    OLD_PID=$(cat "$BRIDGE_PID_FILE")
+    if ! kill -0 "$OLD_PID" 2>/dev/null; then
+        rm -f "$BRIDGE_PID_FILE"
+        echo "  Removed stale bridge PID file (process $OLD_PID dead)"
+    fi
+fi
+
+# Check bridge health — verify actual response, not just port occupancy
+if curl -s --connect-timeout 3 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+    echo "  Cross-machine bridge already running and healthy on :${BRIDGE_PORT}"
+else
+    # Kill anything tracked by our PID file that isn't responding correctly
+    if [ -f "$BRIDGE_PID_FILE" ]; then
+        OLD_PID=$(cat "$BRIDGE_PID_FILE")
+        kill "$OLD_PID" 2>/dev/null || true
+        rm -f "$BRIDGE_PID_FILE"
+    fi
+
+    # Start bridge with PID tracking — fail soft, never block wake-up
+    if [ -f "$BRIDGE_DIR/bridge.js" ]; then
+        echo "  Starting cross-machine bridge..."
+        (cd "$BRIDGE_DIR" && node bridge.js > /tmp/interlateral_bridge.log 2>&1 &
+         echo $! > "$BRIDGE_PID_FILE")
+
+        # Brief wait + verify
+        sleep 1
+        if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+            echo "  Cross-machine bridge started on :${BRIDGE_PORT} (PID: $(cat "$BRIDGE_PID_FILE" 2>/dev/null))"
+            echo "  NOTE: macOS may prompt to allow incoming connections on port ${BRIDGE_PORT}."
+            echo "        If peer machines cannot reach this bridge, check System Settings > Firewall."
+        else
+            echo "  WARNING: Bridge started but health check not responding yet."
+            echo "  It may need a moment. Log: /tmp/interlateral_bridge.log"
+        fi
+    else
+        echo "  WARNING: bridge.js not found at $BRIDGE_DIR/bridge.js. Skipping cross-machine bridge."
+    fi
+fi
+
+###############################################################################
+# 7. PEER HEALTH CHECK (Zero-Config Discovery)
+#
+# If peers.json exists, check reachability of each peer bridge.
+# 5-second timeout with single retry + 3-second backoff for mDNS cold start.
+###############################################################################
+echo "[7/8] Checking peer bridges..."
+
+PEERS_FILE="$BRIDGE_DIR/peers.json"
+if [ -f "$PEERS_FILE" ]; then
+    # Extract peer hosts (excluding self)
+    SELF_NAME=$(node -e "console.log(require('$PEERS_FILE').self)" 2>/dev/null || echo "")
+    PEER_ENTRIES=$(node -e "
+      try {
+        const p = require('$PEERS_FILE');
+        Object.keys(p.peers)
+          .filter(k => k !== p.self)
+          .forEach(k => console.log(k + '|' + p.peers[k].host + '|' + (p.peers[k].port || 3099) + '|' + (p.peers[k].fallback_ip || '')));
+      } catch(e) {}
+    " 2>/dev/null || echo "")
+
+    if [ -n "$PEER_ENTRIES" ]; then
+        while IFS='|' read -r PEER_NAME PEER_HOST PEER_PORT PEER_FALLBACK; do
+            [ -z "$PEER_NAME" ] && continue
+            PEER_URL="http://${PEER_HOST}:${PEER_PORT}/health"
+            if curl -s --connect-timeout 5 "$PEER_URL" > /dev/null 2>&1; then
+                echo "  Peer '$PEER_NAME' ($PEER_HOST:$PEER_PORT): REACHABLE"
+            else
+                echo "  Peer '$PEER_NAME' ($PEER_HOST:$PEER_PORT): not reachable, retrying in 3s..."
+                sleep 3
+                if curl -s --connect-timeout 5 "$PEER_URL" > /dev/null 2>&1; then
+                    echo "  Peer '$PEER_NAME' ($PEER_HOST:$PEER_PORT): REACHABLE (on retry)"
+                elif [ -n "$PEER_FALLBACK" ]; then
+                    FALLBACK_URL="http://${PEER_FALLBACK}:${PEER_PORT}/health"
+                    if curl -s --connect-timeout 5 "$FALLBACK_URL" > /dev/null 2>&1; then
+                        echo "  Peer '$PEER_NAME' via fallback_ip ($PEER_FALLBACK:$PEER_PORT): REACHABLE"
+                    else
+                        echo "  Peer '$PEER_NAME': NOT reachable (tried .local + fallback_ip). Local-only mode."
+                    fi
+                else
+                    echo "  Peer '$PEER_NAME': NOT reachable after retry. Local-only mode."
+                fi
+            fi
+        done <<< "$PEER_ENTRIES"
+    else
+        echo "  No remote peers configured (self: ${SELF_NAME:-unknown})"
+    fi
+else
+    echo "  peers.json not found — skipping peer checks."
+    echo "  Run: cd interlateral_comms && ./setup-peers.sh"
+fi
+
+else
+    echo "[6/8] Cross-team-comms: SKIPPED (use --cross-team to enable)"
+    echo "[7/8] Peer health checks: SKIPPED"
+fi
+
+###############################################################################
+# 8. FINAL VERIFICATION
+###############################################################################
+echo "[8/8] Final verification..."
 echo ""
 echo "=========================================="
 
@@ -457,6 +572,14 @@ if [ "$GEMINI_AVAILABLE" = true ]; then
     fi
 else
     echo "  Gemini tmux: SKIPPED (Gemini CLI not installed)"
+fi
+
+# Check cross-machine bridge (optional - doesn't fail bootstrap if missing)
+if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+    echo "  Bridge:     READY (port ${BRIDGE_PORT})"
+else
+    echo "  Bridge:     NOT RUNNING (cross-machine comms unavailable)"
+    # Note: Don't set BOOTSTRAP_OK=false - bridge is optional
 fi
 
 echo "=========================================="

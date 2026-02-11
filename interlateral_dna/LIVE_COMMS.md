@@ -192,4 +192,65 @@ Use `node ag.js read` to get AG's conversation as text.
 
 ---
 
-*Last updated: 2026-01-28 after discovering raw tmux send-keys leaves messages stuck in Gemini's input box.*
+## CROSS-TEAM-COMMS (Multi-Machine)
+
+Cross-team-comms allows agents on **different machines** to send messages to each other via an HTTP bridge. This is opt-in — only active when `wake-up.sh --cross-team` is used.
+
+### How It Works
+
+Each machine runs `bridge.js` (Express server on port 3099). Agents send messages to remote agents via `bridge-send.js`, which POSTs to the remote machine's bridge, which injects into the target agent's terminal locally.
+
+```
+Alpha CC  →  bridge-send.js --peer beta --target codex --msg "hello"
+                ↓ HTTP POST
+          Beta bridge.js (:3099)
+                ↓ local injection
+          Beta Codex terminal
+```
+
+### Cross-Team Routes
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              CROSS-TEAM-COMMS CHEAT SHEET                        │
+├──────────────────────────────────────────────────────────────────┤
+│  Send to remote agent:                                           │
+│    node bridge-send.js --peer beta --target cc --msg "hello"     │
+│    node bridge-send.js --peer beta --target codex --msg "hello"  │
+│    node bridge-send.js --peer beta --target gemini --msg "hello" │
+│    node bridge-send.js --peer beta --target ag --msg "hello"     │
+│                                                                  │
+│  Manual override (direct IP):                                    │
+│    node bridge-send.js --host 172.20.10.5 --target cc --msg "hi" │
+│                                                                  │
+│  Check remote bridge health:                                     │
+│    curl http://AIs-MacBook-Pro.local:3099/health                 │
+│    curl http://172.20.10.5:3099/health                           │
+├──────────────────────────────────────────────────────────────────┤
+│  --peer resolves via peers.json (.local hostname → fallback IP)  │
+│  --host overrides --peer when both provided                      │
+│  CC is the coordinator — other agents don't auto-execute sends   │
+├──────────────────────────────────────────────────────────────────┤
+│  Config:  interlateral_comms/peers.json                          │
+│  Setup:   cd interlateral_comms && ./setup-peers.sh              │
+│  Bridge:  interlateral_comms/bridge.js (server)                  │
+│  Sender:  interlateral_comms/bridge-send.js (client)             │
+│  Enable:  ./scripts/wake-up.sh --cross-team                      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### CC-Coordinator Rule
+
+**Only CC should run `bridge-send.js` commands.** When a message is injected into CX or Gemini's terminal, they interpret it as conversation, not a command to execute. CC runs bridge-send on behalf of other agents.
+
+### Network Requirements
+
+| Network Type | mDNS (.local) | Direct IP | Use |
+|-------------|---------------|-----------|-----|
+| Shared WiFi / Office LAN | Works | Works | Primary — peers.json `host` field |
+| iPhone Hotspot / Tethered | Fails | Works | Use `fallback_ip` in peers.json |
+| Different networks | N/A | N/A | Use Tailscale (known asymmetry caveat) |
+
+---
+
+*Last updated: 2026-02-11 — added cross-team-comms section*

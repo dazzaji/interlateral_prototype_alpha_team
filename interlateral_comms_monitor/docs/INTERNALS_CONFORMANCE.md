@@ -1500,7 +1500,82 @@ Before creating a PR to upstream template repo:
 
 ---
 
+## 19. Cross-Team-Comms (Bridge Conformance)
+
+The cross-team-comms system allows agents on separate machines to communicate via HTTP. Code lives in `interlateral_comms/`.
+
+### 19.1 Bridge Server Safety (`bridge.js`)
+
+| Check | What | Severity |
+|-------|------|----------|
+| 19.1.1 | Bridge listens on `0.0.0.0:3099` | INFO |
+| 19.1.2 | Body size limit: `10kb` (`express.json({ limit: '10kb' })`) | CRITICAL |
+| 19.1.3 | Concurrency mutex on `/inject` (one injection at a time) | CRITICAL |
+| 19.1.4 | Uses `execFileSync` with args array, NOT `execSync` with string interpolation | CRITICAL — prevents command injection |
+| 19.1.5 | `/read/:agent` is NOT behind mutex (idempotent, doesn't touch tmux input) | BY DESIGN |
+| 19.1.6 | Valid targets: `cc`, `codex`, `gemini`, `ag` — validated before injection | CRITICAL |
+| 19.1.7 | 5000 char message limit enforced | IMPORTANT |
+
+### 19.2 Bridge Client (`bridge-send.js`)
+
+| Check | What | Severity |
+|-------|------|----------|
+| 19.2.1 | `--host` overrides `--peer` when both provided | IMPORTANT |
+| 19.2.2 | Unknown `--peer` name fails fast with available peers list | IMPORTANT |
+| 19.2.3 | Missing `peers.json` produces clear error with setup instructions | IMPORTANT |
+| 19.2.4 | Resolution order: `.local` hostname (2-3s timeout) → `fallback_ip` → error | IMPORTANT |
+| 19.2.5 | Resolved address logged on every send | INFO |
+| 19.2.6 | Read-only: does not write host data outside repo | IMPORTANT |
+| 19.2.7 | 15-second HTTP request timeout | INFO |
+
+### 19.3 Bootstrap Integration
+
+| Check | What | Severity |
+|-------|------|----------|
+| 19.3.1 | Bridge steps (6-7) only run when `CROSS_TEAM=true` | CRITICAL — default OFF |
+| 19.3.2 | PID file lifecycle at `/tmp/interlateral_bridge.pid` | IMPORTANT |
+| 19.3.3 | Health check validates actual response, not just port occupancy | IMPORTANT |
+| 19.3.4 | Fail-soft: bridge failure never blocks wake-up | CRITICAL |
+| 19.3.5 | Peer health check: 5s timeout + 1 retry with 3s backoff | INFO |
+
+### 19.4 Configuration (`peers.json`)
+
+| Check | What | Severity |
+|-------|------|----------|
+| 19.4.1 | `peers.json` is in `.gitignore` (machine-specific) | IMPORTANT |
+| 19.4.2 | `peers.json.example` is checked into repo (template) | IMPORTANT |
+| 19.4.3 | `fallback_ip` is a first-class field (required for hotspot networks) | IMPORTANT |
+| 19.4.4 | `setup-peers.sh` validates mDNS and discovers hostname | INFO |
+
+### 19.5 Operational Constraints
+
+- **CC is cross-team coordinator.** CX and Gemini interpret injected commands as conversation, not shell commands.
+- **AG cross-team: UNTESTED.** `ag.js send` delays may push bridge 15s timeout.
+- **mDNS fails on iPhone hotspots.** `fallback_ip` handles this automatically.
+- **Codex sandbox:** Cannot run `bridge-send.js` directly. Outbox pattern stays local-only.
+
+### 19.6 Code Locations
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Bridge server | `interlateral_comms/bridge.js` | HTTP server, local injection |
+| Bridge client | `interlateral_comms/bridge-send.js` | CLI send with --peer/--host |
+| Peer config | `interlateral_comms/peers.json` | Team hostnames + fallback IPs |
+| Setup script | `interlateral_comms/setup-peers.sh` | One-time hostname discovery |
+| Route table | `interlateral_dna/LIVE_COMMS.md` | Cross-team cheat sheet |
+| Coordinator docs | `CLAUDE.md` | CC cross-team pattern |
+| Full proposal | `COMBINED_REPORT_and_PROPOSAL.md` | Architecture + test report |
+
+---
+
 ## Change Log
+
+### Version 1.9 (2026-02-11)
+
+**Cross-Team-Comms Conformance (NEW Section 19):**
+- Added Section 19: Cross-Team-Comms bridge conformance checks
+- Documents bridge safety (execFileSync, mutex, body limits), client resolution order, bootstrap gating (`--cross-team` flag), peers.json config, operational constraints
+- Cross-references to LIVE_COMMS.md, CLAUDE.md, and COMBINED_REPORT_and_PROPOSAL.md
 
 ### Version 1.8 (2026-02-06)
 
@@ -1665,6 +1740,7 @@ Before creating a PR to upstream template repo:
 | 12. Security | Section 13 |
 | 13. Known Failures | Section 14 |
 | 14. Automated Script | N/A (new for checklist) |
+| 19. Cross-Team-Comms | N/A (new — covers interlateral_comms/) |
 
 ---
 

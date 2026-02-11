@@ -508,6 +508,47 @@ Human had to intervene because CC used raw `tmux send-keys` and messages got stu
 
 ---
 
+## Cross-Team-Comms (Multi-Machine Bridge)
+
+When `--cross-team` is passed to `wake-up.sh`, the bootstrap starts an HTTP bridge (`bridge.js` on port 3099) and checks peer reachability. This allows agents on different machines to send messages to each other.
+
+**CC is the cross-team coordinator.** Only CC should run `bridge-send.js`. Other agents (CX, Gemini) interpret injected commands as conversation, not commands to execute.
+
+### Sending to Remote Agents
+
+```bash
+# Send to any agent on the peer team
+node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello"
+node interlateral_comms/bridge-send.js --peer beta --target codex --msg "hello"
+node interlateral_comms/bridge-send.js --peer beta --target gemini --msg "hello"
+
+# Direct IP override (bypasses peers.json)
+node interlateral_comms/bridge-send.js --host 172.20.10.5 --target cc --msg "hello"
+```
+
+### Resolution Order
+
+`--peer` resolves via `interlateral_comms/peers.json`:
+1. Try `.local` hostname (mDNS, 2-3s timeout)
+2. If mDNS fails → use `fallback_ip`
+3. If no fallback → error with setup instructions
+
+### Key Constraints
+
+- **CC-bottleneck:** Only CC reliably sends cross-team. Other agents get messages but won't auto-execute bridge-send commands back.
+- **Same network required.** mDNS works on WiFi/LAN. On iPhone hotspots, `fallback_ip` kicks in automatically.
+- **Bridge mutex:** `/inject` is behind a concurrency lock. `/status` and `/read` are not — concurrent status checks won't queue behind injections.
+
+### Setup (one-time per machine)
+
+```bash
+cd interlateral_comms && ./setup-peers.sh
+```
+
+See `LIVE_COMMS.md` for the full cross-team route table and cheat sheet.
+
+---
+
 ## Leadership Protocol (Quad-Agent)
 
 On boot, check `interlateral_dna/leadership.json` to see who is the lead:

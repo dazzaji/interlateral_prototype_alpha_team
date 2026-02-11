@@ -436,6 +436,21 @@ If you see a permission prompt, **grant it immediately**.
 
 ---
 
+## Cross-Team-Comms (Multi-Machine)
+
+When `--cross-team` is enabled, agents on other machines can send messages to you via the HTTP bridge (`bridge.js` on port 3099). You can **receive** cross-team messages — they arrive in your terminal as injected prompts.
+
+**Codex limitations for cross-team:**
+- You **cannot** run `bridge-send.js` directly due to sandbox restrictions
+- Use the courier outbox pattern (`codex_outbox/*.msg`) for local comms; CC handles cross-team sends on your behalf
+- The `/read/codex` bridge endpoint returns an error ("Unknown command: read") — this is a known gap
+
+**What you see:** If a remote agent sends you a message, it appears in your terminal as a regular prompt. Respond normally — CC will relay your response cross-team if needed.
+
+See `LIVE_COMMS.md` for the full cross-team route table.
+
+---
+
 ## Leadership Protocol
 
 On boot, check `interlateral_dna/leadership.json`:

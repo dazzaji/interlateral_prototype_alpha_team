@@ -7,6 +7,7 @@
 # Usage:
 #   ./scripts/wake-up.sh "Your prompt here"
 #   ./scripts/wake-up.sh --dangerously-skip-permissions "Your prompt"
+#   ./scripts/wake-up.sh --cross-team               # Enable cross-team-comms (bridge + peer checks)
 #   WAKEUP_PROMPT_FILE=/tmp/prompt.txt ./scripts/wake-up.sh --dangerously-skip-permissions
 #
 # Note: If the flag is omitted, this script defaults to --dangerously-skip-permissions.
@@ -34,17 +35,28 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Source shared tmux configuration
 source "$SCRIPT_DIR/tmux-config.sh"
 
-# Default to full permissions unless explicitly provided
+# Parse wake-up flags (before passing remaining args to CC)
 HAS_DANGEROUS=0
+CROSS_TEAM=false
+REMAINING_ARGS=()
 for arg in "$@"; do
     if [[ "$arg" == "--dangerously-skip-permissions" ]]; then
         HAS_DANGEROUS=1
-        break
+        REMAINING_ARGS+=("$arg")
+    elif [[ "$arg" == "--cross-team" ]]; then
+        CROSS_TEAM=true
+    else
+        REMAINING_ARGS+=("$arg")
     fi
 done
+set -- "${REMAINING_ARGS[@]+"${REMAINING_ARGS[@]}"}"
 if [[ "$HAS_DANGEROUS" -eq 0 ]]; then
     set -- --dangerously-skip-permissions "$@"
     echo "[wake-up] Defaulting to --dangerously-skip-permissions"
+fi
+if [[ "$CROSS_TEAM" == true ]]; then
+    echo "[wake-up] Cross-team-comms ENABLED (bridge + peer checks)"
+    export CROSS_TEAM=true
 fi
 
 # Handle prompt from file if WAKEUP_PROMPT_FILE is set
@@ -71,7 +83,7 @@ echo ""
 echo "Step 1: System bootstrap..."
 if [ -x "$REPO_ROOT/scripts/bootstrap-full.sh" ]; then
     # Run bootstrap, but don't fail wake-up if it has issues
-    "$REPO_ROOT/scripts/bootstrap-full.sh" || {
+    CROSS_TEAM="${CROSS_TEAM:-false}" "$REPO_ROOT/scripts/bootstrap-full.sh" || {
         echo ""
         echo "WARNING: Bootstrap had issues but continuing with CC startup."
         echo "Some features may not work until fixed."

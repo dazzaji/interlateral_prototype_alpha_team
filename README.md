@@ -854,6 +854,12 @@ interlateral_prototype_alpha/
 │   ├── comms.md                 # Shared coordination log
 │   ├── codex_telemetry.log      # Codex terminal capture
 │   └── package.json             # Node.js dependencies
+├── interlateral_comms/          # Cross-team-comms (multi-machine bridge)
+│   ├── bridge.js                # HTTP bridge server (port 3099)
+│   ├── bridge-send.js           # CLI client (--peer or --host)
+│   ├── peers.json.example       # Peer config template
+│   ├── setup-peers.sh           # One-time peer hostname setup
+│   └── package.json             # Express dependency
 ├── interlateral_comms_monitor/  # Dashboard
 │   ├── server/                  # Express + WebSocket backend
 │   ├── ui/                      # React + Vite frontend
@@ -903,6 +909,28 @@ node codex.js send "message"   # Send message to Codex
 5. **Graceful Degradation:** If AG is unavailable, the system works in CLI-only mode (CC + Codex + Gemini).
 
 For complete technical documentation, see `interlateral_comms_monitor/docs/INTERNALS_GUIDE.md`.
+
+---
+
+## Cross-Team-Comms (Multi-Machine)
+
+When multiple teams run on separate machines (e.g., Alpha on MacBook Air, Beta on MacBook Pro), they can communicate via the cross-team-comms bridge.
+
+**Quick start:**
+```bash
+# First time only: configure peer hostnames
+cd interlateral_comms && ./setup-peers.sh
+
+# Enable on wake-up
+./scripts/wake-up.sh --cross-team
+
+# Send message to remote agent
+node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from alpha"
+```
+
+**How it works:** Each machine runs an HTTP bridge (`bridge.js` on port 3099). `bridge-send.js --peer` resolves the peer's hostname via mDNS (`.local`) with automatic fallback to direct IP. See `interlateral_dna/LIVE_COMMS.md` for full route table and `COMBINED_REPORT_and_PROPOSAL.md` for architecture details.
+
+**Default: OFF.** Cross-team-comms only starts when `--cross-team` is passed. Normal single-machine sessions skip the bridge entirely.
 
 ---
 

@@ -285,5 +285,27 @@ If you see a permission prompt, **grant it immediately**.
 
 ---
 
+---
+
+## Cross-Team-Comms (Multi-Machine)
+
+When `--cross-team` is enabled, agents on other machines can send messages to you via the HTTP bridge. You can **receive** cross-team messages and you **can** run `bridge-send.js` directly (you have shell access).
+
+**However, CC remains the cross-team coordinator.** Even though you have the capability to run bridge-send, the standard pattern is for CC to handle cross-team sends to maintain coordination.
+
+```bash
+# You CAN do this (but CC normally handles it):
+node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from gemini"
+
+# Check if remote bridge is up:
+curl -s http://AIs-MacBook-Pro.local:3099/health
+```
+
+**Shell mode warning:** If you're in bash/shell mode (not Gemini prompt mode), cross-team messages injected via the bridge will land at a bash prompt, not your Gemini input. Stay in prompt-ready state to receive bridge messages correctly. Press Escape to exit shell mode if stuck.
+
+See `LIVE_COMMS.md` for the full cross-team route table.
+
+---
+
 *Gemini CLI is part of the Interlateral Quad-Agent Mesh*
 *See INTERNALS_CONFORMANCE.md for complete conformance rules*

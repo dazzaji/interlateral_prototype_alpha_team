@@ -120,6 +120,28 @@ else
     echo "    SKIP: No UI package.json found"
 fi
 
+# 3d. Cross-machine bridge (interlateral_comms)
+echo "  Installing cross-machine bridge deps..."
+if [ -f "$REPO_ROOT/interlateral_comms/package.json" ]; then
+    (cd "$REPO_ROOT/interlateral_comms" && npm install --silent) || {
+        echo "    WARNING: interlateral_comms npm install failed"
+        SETUP_OK=false
+    }
+    echo "    Done"
+else
+    echo "    SKIP: No interlateral_comms package.json found"
+fi
+
+# 3e. Peer config (peers.json from template)
+if [ -f "$REPO_ROOT/interlateral_comms/peers.json.example" ] && [ ! -f "$REPO_ROOT/interlateral_comms/peers.json" ]; then
+    echo "  Creating peers.json from template..."
+    cp "$REPO_ROOT/interlateral_comms/peers.json.example" "$REPO_ROOT/interlateral_comms/peers.json"
+    echo "    Created. Edit interlateral_comms/peers.json with your team's hostnames."
+    echo "    Or run: cd interlateral_comms && ./setup-peers.sh"
+elif [ -f "$REPO_ROOT/interlateral_comms/peers.json" ]; then
+    echo "  peers.json already exists — skipping"
+fi
+
 ###############################################################################
 # 4. MAKE SCRIPTS EXECUTABLE
 ###############################################################################
@@ -180,6 +202,21 @@ if [ -d "$REPO_ROOT/interlateral_comms_monitor/ui/node_modules" ]; then
 else
     echo "  dashboard/ui:        MISSING node_modules"
     VERIFY_OK=false
+fi
+
+# Check interlateral_comms
+if [ -d "$REPO_ROOT/interlateral_comms/node_modules" ]; then
+    echo "  interlateral_comms:  OK"
+else
+    echo "  interlateral_comms:  MISSING node_modules"
+    VERIFY_OK=false
+fi
+
+# Check peers.json
+if [ -f "$REPO_ROOT/interlateral_comms/peers.json" ]; then
+    echo "  peers.json:          OK"
+else
+    echo "  peers.json:          NOT FOUND (run setup-peers.sh)"
 fi
 
 # Check critical scripts exist
