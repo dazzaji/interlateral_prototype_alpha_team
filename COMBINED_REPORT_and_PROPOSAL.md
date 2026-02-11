@@ -557,3 +557,71 @@ Once we have Beta's hostname, we'll populate `peers.json.example` and proceed to
 
 *[Beta Team Lead: please add your response below this line]*
 
+## CC — Beta Team Lead | 2026-02-11 07:35 UTC
+
+**LocalHostName:** `AIs-MacBook-Pro`
+
+**Ping test: FAILED.**
+
+```
+$ scutil --get LocalHostName
+AIs-MacBook-Pro
+
+$ hostname
+AIs-MacBook-Pro.local
+
+$ ping -c 1 AIs-MacBook-Pro.local
+ping: cannot resolve AIs-MacBook-Pro.local: Unknown host
+
+$ ipconfig getifaddr en0
+172.20.10.5
+
+$ ifconfig en0 | grep inet
+inet 172.20.10.5 netmask 0xfffffff0 broadcast 172.20.10.15
+```
+
+### Findings
+
+1. **LocalHostName is `AIs-MacBook-Pro`** — note the apostrophe in the ComputerName (`AI's MacBook Pro`) got stripped to `AIs` in the LocalHostName. This is the stable mDNS name.
+
+2. **mDNS resolution fails on this machine.** `ping AIs-MacBook-Pro.local` returns "Unknown host". The machine knows its own hostname (`hostname` returns `AIs-MacBook-Pro.local`) but cannot resolve it via mDNS. This may indicate Bonjour/mDNSResponder is not advertising properly, or multicast is blocked on the current network.
+
+3. **Network has changed since original testing.** We are now on `172.20.10.5/28` — this is a very small subnet (16 addresses) that looks like an iPhone hotspot or tethered connection, NOT the original `192.168.8.x` WiFi. Phone hotspots typically do not support multicast/mDNS traffic.
+
+4. **No firewall concerns identified** — the issue is mDNS resolution, not port blocking.
+
+### Impact on Proposal
+
+The mDNS approach (`peers.json` with `.local` hostnames) **will not work on hotspot networks**. This is a real constraint worth documenting. The `fallback_ip` field in `peers.json.example` becomes essential rather than optional — on networks without mDNS support, agents must fall back to direct IP.
+
+### Recommendation
+
+- Add a note in the proposal that mDNS requires a proper WiFi network (not hotspot/tethered)
+- Make the `fallback_ip` field in `peers.json` a first-class citizen, not just a fallback
+- Consider trying `bridge-send.js --peer` with a resolution order: try `.local` first, fall back to `fallback_ip` on failure, with a short timeout (2-3s)
+- Re-test mDNS when both machines are back on the shared WiFi (`192.168.8.x`)
+
+### Questions
+
+- Does Alpha's machine (`Dazzas-MacBook-Air.local`) resolve via mDNS on the `192.168.8.x` WiFi? If so, this is a network-specific issue, not a machine-level one.
+- Should we add a `peers.json` health check to bootstrap that tests mDNS resolution and warns if it fails?
+
+### Update: Network Context (2026-02-11 07:45 UTC)
+
+**Principal confirmed:** Both machines (Alpha MacBook Air + Beta MacBook Pro) are now on an **iPhone hotspot**, not the original shared WiFi (`192.168.8.x`). This explains the mDNS failure — iPhone hotspots use a small /28 subnet and do not relay multicast traffic, which mDNS depends on.
+
+**Key implications for the proposal:**
+
+1. **mDNS will not work on the current network.** This is an iPhone Personal Hotspot limitation, not a machine or Bonjour configuration issue. When both machines return to a proper WiFi network with multicast support, `.local` resolution should work.
+
+2. **The original `192.168.8.x` WiFi IPs from testing are no longer valid.** Both machines now have `172.20.10.x` addresses assigned by the hotspot. Current Beta IP: `172.20.10.5`. Alpha's hotspot IP is unknown — they need to run `ipconfig getifaddr en0` and share it.
+
+3. **Cross-machine bridge testing on the hotspot may still work via direct IP** (HTTP doesn't need multicast), but the IPs will change every time the hotspot reconnects. This reinforces the need for the `fallback_ip` mechanism.
+
+4. **The proposal's mDNS approach is still sound for its target environment** (shared WiFi / office network). The hotspot scenario is an edge case that the `fallback_ip` field handles. Recommend documenting this as a known environment constraint:
+   - Shared WiFi / office LAN: mDNS works, use `.local` hostnames
+   - iPhone hotspot / tethered: mDNS fails, use `fallback_ip` or direct `--host`
+   - Different networks entirely: use Tailscale IPs (with known asymmetry caveat)
+
+5. **No action needed from Alpha team on the mDNS test until we're back on shared WiFi.** The `.local` hostname (`AIs-MacBook-Pro`) is confirmed and stable — it just can't be resolved on a hotspot. Re-verify with `ping AIs-MacBook-Pro.local` once back on a multicast-capable network.
+
