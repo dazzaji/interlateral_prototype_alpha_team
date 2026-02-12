@@ -7,3 +7,7 @@
 [Bridge] Auth: BRIDGE_TOKEN enabled (x-bridge-token required on /inject)
 [Bridge] Test: curl http://localhost:3099/health
 [Bridge] Inject: curl -X POST http://localhost:3099/inject -H 'Content-Type: application/json' -d '{"target":"cc","message":"hello"}'
+⚠️  Warning: tmux pane is running 'zsh', not CC.
+   Message will go to shell prompt, not CC input.
+   (Sending anyway in case this is intentional)
+
