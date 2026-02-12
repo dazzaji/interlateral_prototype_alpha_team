@@ -2,13 +2,13 @@
 
 **Date:** 2026-02-11
 **Managed by:** CC (Alpha Team Lead / HyperDomo)
-**Status:** ALL REMEDIATION COMPLETE — LIVE CROSS-TEAM TEST PENDING
+**Status:** ALL REMEDIATION COMPLETE — LIVE CROSS-TEAM TEST COMPLETE (PASS)
 
 ---
 
 ## BETA TEAM: LIVE TEST INSTRUCTIONS (2026-02-12)
 
-**All review findings are fixed. One thing left: a live cross-team test between Alpha and Beta.**
+**All review findings are fixed. This section captures the exact run instructions used for the completed live cross-team test between Alpha and Beta.**
 
 ### What Beta needs to do
 
@@ -36,6 +36,31 @@ That's it. Once you're up, tell Alpha. Alpha's CC agent will:
 ### The shared secret
 
 `BRIDGE_TOKEN=interlateral-2026` — same on both machines.
+
+---
+
+## LIVE CROSS-TEAM TEST RESULTS (2026-02-12 23:41 UTC)
+
+**Result: PASS.** Alpha and Beta executed the full validation plan and confirmed sync.
+
+### Test run metadata
+- **Primary test timestamp:** `2026-02-12T23:41:39Z`
+- **Alpha bridge health:** PASS (`service=interlateral-bridge`, `team_id=alpha`)
+- **Beta bridge health:** PASS (`service=interlateral-bridge`, `team_id=beta`, host `AIs-MacBook-Pro.lan`)
+
+### Required checks from plan
+1. **Auth guardrail:** PASS  
+   - Beta `/inject` **without** token returned `HTTP 401` (`Unauthorized: invalid bridge token`)  
+   - Beta `/inject` **with** token returned `HTTP 200` (`delivered:true`)
+2. **Identity stamps end-to-end:** PASS  
+   - Messages observed with stamps like: `[ID team=beta sender=... host=AIs-MacBook-Pro.lan sid=...]`
+3. **Round-trip delivery Alpha <-> Beta:** PASS  
+   - Alpha -> Beta sends delivered to `cc`, `codex`, and `gemini` on `192.168.8.216:3099`  
+   - Beta -> Alpha return-path confirmed in coordination log
+
+### Beta explicit sync confirmation (received via bridge)
+- `SYNC-ACK auth_guardrail=PASS identity_stamps=PASS round_trip=PASS plan=IN_SYNC`
+- `ACK TEST 2026-02-12T23:41:39Z`
 
 ---
 
@@ -270,4 +295,5 @@ These issues were independently identified by **3+ of 4 reviewers**:
 ### Status
 - Alpha team: COMPLETE
 - Beta team: COMPLETE (received via bridge, written to file by HyperDomo)
-- **Ready for principal review and remediation tasking.**
+- Live cross-team test: COMPLETE (PASS) at `2026-02-12T23:41:39Z`
+- **Ready for principal review and closeout.**

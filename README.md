@@ -940,7 +940,12 @@ export BRIDGE_TOKEN=your-shared-bridge-token
 node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from alpha"
 ```
 
-**How it works:** Each machine runs an HTTP bridge (`bridge.js` on port 3099). `bridge-send.js --peer` resolves peers via DNS lookup of `.local` hostname with automatic fallback to direct IP. If `BRIDGE_TOKEN` is set, the bridge requires `x-bridge-token` on `/inject` and `bridge-send.js` sends it automatically from env/`--token`. See `interlateral_dna/LIVE_COMMS.md` for full route table and `COMBINED_REPORT_and_PROPOSAL.md` for architecture details.
+**How it works:** Each machine runs an HTTP bridge (`bridge.js` on port 3099). `bridge-send.js --peer` resolves peers via DNS lookup of `.local` hostname with automatic fallback to direct IP. If `BRIDGE_TOKEN` is set, the bridge requires `x-bridge-token` on `/inject` and `bridge-send.js` sends it automatically from env/`--token`.
+
+**Docs:**
+- Operator runbook: `interlateral_dna/LIVE_COMMS.md`
+- Validation summary: `docs/inter-team-comms-validation.md`
+- Architecture and design history: `inter-agent-comms-plan.md`
 
 **Identity model:** Every relayed message carries an identity stamp (`team`, `sender`, `host`, `session`). `wake-up.sh` creates `INTERLATERAL_SESSION_ID` per boot and writes `interlateral_dna/session_identity.json` for debugging/audit.
 
