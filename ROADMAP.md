@@ -15,6 +15,15 @@ Historical implementation detail, post-mortems, superseded designs, and prior te
 
 ## NOW - Public Usability + Reliability
 
+### 0. Cross-Team Comms Security Guardrail (From Combined Reviews)
+**Status:** `done` | **Owner:** CC | **Date:** 2026-02-12
+
+**What:** Require authenticated bridge injection by default in cross-team mode: fail or hard-warn in `wake-up.sh --cross-team` when `BRIDGE_TOKEN` is missing, and provide a one-command setup path.
+
+**Acceptance:** `wake-up.sh --cross-team` exits 1 when `BRIDGE_TOKEN` is unset. `bootstrap-full.sh` blocks bridge start as defense-in-depth. `BRIDGE_ALLOW_NO_AUTH=true` provides explicit override. Smoke tests validate all three paths. Conformance checks added (19.3.7–19.3.9, 12.3.1–12.3.4).
+
+**Source context:** `COMBINED_REPORT_and_PROPOSAL-REVIEWS.md` (Alpha+Beta consensus findings and HyperDomo summary).
+
 ### 1. Single Project Spec Architecture
 **What:** Introduce one project spec format so a user can define a complete multi-agent run (workflow, roles, artifact paths, eval packs) in one file and execute it with one command.
 
@@ -78,6 +87,18 @@ Historical implementation detail, post-mortems, superseded designs, and prior te
 ---
 
 ## NEXT - Quality / Observability Hardening
+
+### 13A. Cross-Team Comms Deferred Follow-Ups (Context Preservation)
+**What:** Track the remaining non-blocking review items from `COMBINED_REPORT_and_PROPOSAL-REVIEWS.md` after the implemented fixes.
+
+**Deferred items (safe to defer short-term):**
+- Optional optimization: cache last-known-good peer resolution to reduce repeated DNS/fallback latency.
+- Setup UX: make `setup-peers.sh` auto-populate more fields (currently template + guided edit).
+- Reliability: consider async `/inject` acknowledgment model (`202 + job id`) for slow AG delivery edge cases.
+- Additional hardening: stronger local file protections for runtime artifacts beyond current `.runtime` move.
+- Operational docs: add a compact runbook for team-id collisions and duplicate-role detection recovery.
+
+**Not deferred indefinitely:** auth-by-default for cross-team mode (see NOW item 0).
 
 ### 13. Review Preservation Enforcement
 **What:** Enforce append-only review behavior (e.g., via skill rules/checks) so revision history is never overwritten.

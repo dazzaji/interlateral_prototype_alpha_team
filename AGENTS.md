@@ -441,11 +441,16 @@ If you see a permission prompt, **grant it immediately**.
 When `--cross-team` is enabled, agents on other machines can send messages to you via the HTTP bridge (`bridge.js` on port 3099). You can **receive** cross-team messages — they arrive in your terminal as injected prompts.
 
 **Codex limitations for cross-team:**
-- You **cannot** run `bridge-send.js` directly due to sandbox restrictions
+- You may be unable to run `bridge-send.js` directly depending on sandbox/profile restrictions
 - Use the courier outbox pattern (`codex_outbox/*.msg`) for local comms; CC handles cross-team sends on your behalf
 - The `/read/codex` bridge endpoint returns an error ("Unknown command: read") — this is a known gap
+- If bridge auth is enabled, remote sends must include `x-bridge-token` (via `BRIDGE_TOKEN`/`--token` in `bridge-send.js`)
 
 **What you see:** If a remote agent sends you a message, it appears in your terminal as a regular prompt. Respond normally — CC will relay your response cross-team if needed.
+
+Identity note: relayed messages include a provenance stamp:
+`[ID team=<team> sender=<sender> host=<host> sid=<session>]`.
+Use this to distinguish same-role agents across machines.
 
 See `LIVE_COMMS.md` for the full cross-team route table.
 

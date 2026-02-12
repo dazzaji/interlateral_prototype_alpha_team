@@ -921,6 +921,12 @@ When multiple teams run on separate machines (e.g., Alpha on MacBook Air, Beta o
 # First time only: configure peer hostnames
 cd interlateral_comms && ./setup-peers.sh
 
+# Required for unambiguous routing across teams
+export INTERLATERAL_TEAM_ID=alpha
+
+# Optional but recommended: protect /inject with a shared token
+export BRIDGE_TOKEN=your-shared-bridge-token
+
 # Enable on wake-up
 ./scripts/wake-up.sh --cross-team
 
@@ -928,7 +934,9 @@ cd interlateral_comms && ./setup-peers.sh
 node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from alpha"
 ```
 
-**How it works:** Each machine runs an HTTP bridge (`bridge.js` on port 3099). `bridge-send.js --peer` resolves the peer's hostname via mDNS (`.local`) with automatic fallback to direct IP. See `interlateral_dna/LIVE_COMMS.md` for full route table and `COMBINED_REPORT_and_PROPOSAL.md` for architecture details.
+**How it works:** Each machine runs an HTTP bridge (`bridge.js` on port 3099). `bridge-send.js --peer` resolves peers via DNS lookup of `.local` hostname with automatic fallback to direct IP. If `BRIDGE_TOKEN` is set, the bridge requires `x-bridge-token` on `/inject` and `bridge-send.js` sends it automatically from env/`--token`. See `interlateral_dna/LIVE_COMMS.md` for full route table and `COMBINED_REPORT_and_PROPOSAL.md` for architecture details.
+
+**Identity model:** Every relayed message carries an identity stamp (`team`, `sender`, `host`, `session`). `wake-up.sh` creates `INTERLATERAL_SESSION_ID` per boot and writes `interlateral_dna/session_identity.json` for debugging/audit.
 
 **Default: OFF.** Cross-team-comms only starts when `--cross-team` is passed. Normal single-machine sessions skip the bridge entirely.
 

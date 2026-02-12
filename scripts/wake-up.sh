@@ -31,6 +31,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+HOST_SHORT="$(hostname -s 2>/dev/null || hostname)"
+
+# Stable per-wake session identity used across local + cross-team messaging
+if [[ -z "${INTERLATERAL_SESSION_ID:-}" ]]; then
+    INTERLATERAL_SESSION_ID="mesh_${HOST_SHORT}_$(date -u +%Y%m%dT%H%M%SZ)"
+fi
+INTERLATERAL_TEAM_ID="${INTERLATERAL_TEAM_ID:-${TEAM_ID:-alpha}}"
+export INTERLATERAL_SESSION_ID
+export OTEL_SESSION_ID="${OTEL_SESSION_ID:-$INTERLATERAL_SESSION_ID}"
+export INTERLATERAL_TEAM_ID
 
 # Source shared tmux configuration
 source "$SCRIPT_DIR/tmux-config.sh"
@@ -55,7 +65,31 @@ if [[ "$HAS_DANGEROUS" -eq 0 ]]; then
     echo "[wake-up] Defaulting to --dangerously-skip-permissions"
 fi
 if [[ "$CROSS_TEAM" == true ]]; then
+    # AUTH GUARDRAIL: Cross-team mode requires BRIDGE_TOKEN by default.
+    # Without auth, any device on the same network can inject messages into
+    # agent terminals via the HTTP bridge. This is a prompt-injection vector.
+    if [[ -z "${BRIDGE_TOKEN:-}" ]] && [[ "${BRIDGE_ALLOW_NO_AUTH:-false}" != "true" ]]; then
+        echo ""
+        echo "ERROR: Cross-team mode requires BRIDGE_TOKEN to be set."
+        echo ""
+        echo "The bridge accepts remote injection requests over HTTP. Without auth,"
+        echo "any device on the same network can inject messages into your agent terminals."
+        echo ""
+        echo "Fix (recommended — set on ALL peer machines):"
+        echo "  export BRIDGE_TOKEN=your-shared-secret"
+        echo ""
+        echo "Override (NOT recommended for shared/public networks):"
+        echo "  export BRIDGE_ALLOW_NO_AUTH=true"
+        echo ""
+        exit 1
+    fi
     echo "[wake-up] Cross-team-comms ENABLED (bridge + peer checks)"
+    if [[ -z "${BRIDGE_TOKEN:-}" ]]; then
+        echo "[wake-up] WARNING: BRIDGE_TOKEN not set (override active via BRIDGE_ALLOW_NO_AUTH)."
+        echo "[wake-up] Cross-team bridge will run WITHOUT authentication."
+    else
+        echo "[wake-up] Bridge auth: ENABLED (BRIDGE_TOKEN set)"
+    fi
     export CROSS_TEAM=true
 fi
 
@@ -76,6 +110,8 @@ fi
 echo "============================================"
 echo "  INTERLATERAL WAKE-UP"
 echo "============================================"
+echo "Session ID: $INTERLATERAL_SESSION_ID"
+echo "Team ID:    $INTERLATERAL_TEAM_ID"
 echo ""
 
 # STEP 1: Bootstrap the entire system BEFORE CC wakes
@@ -145,6 +181,17 @@ echo "  Directories ready"
 echo "# Coordination Log - Session $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > "$REPO_ROOT/interlateral_dna/comms.md"
 echo "# AG Message Log - Session $(date -u '+%Y-%m-%d %H:%M:%S UTC')" > "$REPO_ROOT/interlateral_dna/ag_log.md"
 echo "  Coordination files created (fresh/empty)"
+
+# Persist current identity metadata for debugging/routing clarity
+cat > "$REPO_ROOT/interlateral_dna/session_identity.json" <<EOF
+{
+  "session_id": "$INTERLATERAL_SESSION_ID",
+  "team_id": "$INTERLATERAL_TEAM_ID",
+  "host": "$HOST_SHORT",
+  "created_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+echo "  Session identity saved: interlateral_dna/session_identity.json"
 
 # Best-effort rotation (should NEVER block wake-up)
 if [ -x "$REPO_ROOT/scripts/rotate-logs.sh" ]; then

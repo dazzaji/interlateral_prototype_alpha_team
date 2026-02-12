@@ -6,12 +6,13 @@
 const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
+const { stampMessage, getIdentity } = require('./identity');
 
 const LOG_FILE = path.join(__dirname, 'ag_log.md');
 const REPO_ROOT = path.resolve(__dirname, '..');
 const AG_TELEMETRY_LOG = path.join(REPO_ROOT, '.gemini', 'ag_telemetry.log');
 const CDP_URL = 'http://127.0.0.1:9222';
-const SESSION_ID = process.env.OTEL_SESSION_ID || `session_${Date.now()}`;
+const SESSION_ID = process.env.OTEL_SESSION_ID || process.env.INTERLATERAL_SESSION_ID || `session_${Date.now()}`;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -84,6 +85,7 @@ async function getAgentFrame(page) {
 }
 
 async function send(message) {
+    const stampedMessage = stampMessage(message);
     const { browser, page } = await getManagerPage();
     const agentFrame = await getAgentFrame(page);
     const targetFrame = agentFrame || page;
@@ -113,7 +115,7 @@ async function send(message) {
         document.execCommand('insertText', false, msg);
         // Dispatch 'input' just in case
         document.activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-    }, message);
+    }, stampedMessage);
 
     await sleep(500);
 
@@ -154,14 +156,15 @@ async function send(message) {
 
     if (isStillFull) {
         console.error('❌ FAILED TO SUBMIT. Message remains in input box.');
-        log('CC → AG', `FAILED DELIVERY: ${message}`); // Log failure
+        log('Relay → AG', `FAILED DELIVERY: ${stampedMessage}`); // Log failure
     } else {
         console.log('✅ Submitted successfully.');
-        log('CC → AG', message);
+        log('Relay → AG', stampedMessage);
     }
 
-    console.log(JSON.stringify({ status: isStillFull ? 'failed_stuck' : 'sent', message: message }));
-    persistTelemetry('send', { message, status: isStillFull ? 'failed' : 'sent' });
+    const identity = getIdentity();
+    console.log(JSON.stringify({ status: isStillFull ? 'failed_stuck' : 'sent', message: stampedMessage, identity }));
+    persistTelemetry('send', { message: stampedMessage, status: isStillFull ? 'failed' : 'sent', identity });
     await browser.disconnect();
 }
 

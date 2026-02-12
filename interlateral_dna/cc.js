@@ -24,6 +24,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { stampMessage, logActor } = require('./identity');
 
 // tmux socket path - use explicit socket to ensure Codex can access without permission prompts
 // The system default socket at /private/tmp/ is outside Codex's writable roots
@@ -161,9 +162,10 @@ function send(message) {
   }
 
   try {
+    const stampedMessage = stampMessage(message);
     // Escape special characters for tmux
     // Escape special characters for tmux
-    const escaped = message
+    const escaped = stampedMessage
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
       .replace(/\$/g, '\\$')
@@ -191,7 +193,8 @@ function send(message) {
     // Log to comms.md for record
     try {
       const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      const entry = `\n[AG] @CC [${timestamp}]\n${message}\n\n---\n`;
+      const actor = logActor('Relay');
+      const entry = `\n[${actor}] @CC [${timestamp}]\n${stampedMessage}\n\n---\n`;
       fs.appendFileSync(COMMS_PATH, entry);
       console.log('📝 Also logged to comms.md');
     } catch (logError) {

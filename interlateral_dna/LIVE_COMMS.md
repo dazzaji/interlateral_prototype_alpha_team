@@ -200,6 +200,11 @@ Cross-team-comms allows agents on **different machines** to send messages to eac
 
 Each machine runs `bridge.js` (Express server on port 3099). Agents send messages to remote agents via `bridge-send.js`, which POSTs to the remote machine's bridge, which injects into the target agent's terminal locally.
 
+If `BRIDGE_TOKEN` is set on the bridge, `/inject` requires `x-bridge-token` (sent automatically by `bridge-send.js` when `BRIDGE_TOKEN` env var or `--token` is provided).
+All relay paths now prepend a provenance stamp:
+`[ID team=<team> sender=<sender> host=<host> sid=<session>]`
+so duplicate roles (e.g., two `cc` instances) can be disambiguated.
+
 ```
 Alpha CC  →  bridge-send.js --peer beta --target codex --msg "hello"
                 ↓ HTTP POST
@@ -223,13 +228,19 @@ Alpha CC  →  bridge-send.js --peer beta --target codex --msg "hello"
 │  Manual override (direct IP):                                    │
 │    node bridge-send.js --host 172.20.10.5 --target cc --msg "hi" │
 │                                                                  │
+│  With auth token enabled:                                        │
+│    BRIDGE_TOKEN=shared node bridge-send.js --peer beta ...       │
+│    node bridge-send.js --peer beta --token shared ...            │
+│                                                                  │
 │  Check remote bridge health:                                     │
 │    curl http://AIs-MacBook-Pro.local:3099/health                 │
 │    curl http://172.20.10.5:3099/health                           │
 ├──────────────────────────────────────────────────────────────────┤
-│  --peer resolves via peers.json (.local hostname → fallback IP)  │
+│  --peer resolves via DNS lookup (.local) → fallback_ip           │
 │  --host overrides --peer when both provided                      │
 │  CC is the coordinator — other agents don't auto-execute sends   │
+│  /health includes service, bridge_version, and mesh_id           │
+│  Team/session identity is exposed in /health and /status          │
 ├──────────────────────────────────────────────────────────────────┤
 │  Config:  interlateral_comms/peers.json                          │
 │  Setup:   cd interlateral_comms && ./setup-peers.sh              │
@@ -243,6 +254,13 @@ Alpha CC  →  bridge-send.js --peer beta --target codex --msg "hello"
 
 **Only CC should run `bridge-send.js` commands.** When a message is injected into CX or Gemini's terminal, they interpret it as conversation, not a command to execute. CC runs bridge-send on behalf of other agents.
 
+### Identity Rules (Required for Multi-Team)
+
+1. Set unique team IDs per machine/team (`INTERLATERAL_TEAM_ID=alpha`, `beta`, etc.).
+2. `wake-up.sh` generates and exports a session ID (`INTERLATERAL_SESSION_ID`) and saves it to `interlateral_dna/session_identity.json`.
+3. Do not run two active coordinators with identical `team_id + role` unless intentional.
+4. If bootstrap peer check warns that peer `team_id` matches local `team_id`, fix config before running coordinated tasks.
+
 ### Network Requirements
 
 | Network Type | mDNS (.local) | Direct IP | Use |
@@ -253,4 +271,4 @@ Alpha CC  →  bridge-send.js --peer beta --target codex --msg "hello"
 
 ---
 
-*Last updated: 2026-02-11 — added cross-team-comms section*
+*Last updated: 2026-02-12 — auth token + DNS resolution + health identity updates*

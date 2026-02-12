@@ -4,6 +4,51 @@
 **Managed by:** CC (Alpha Team Lead / HyperDomo)
 **Status:** IN PROGRESS
 
+## MAJOR UPDATE FOR HANDOFF — 2026-02-12 22:08 UTC
+
+### COMPLETED IMPLEMENTATION (DONE) — NEEDS CODE REVIEW + DOC REVIEW
+
+The following remediation work is now implemented and should be reviewed by the incoming team:
+
+1. **Critical security fixes in cross-team bridge/client**
+- Replaced shell-based hostname checks in `interlateral_comms/bridge-send.js` with DNS lookup + bounded timeout.
+- Added optional token auth on `/inject` in `interlateral_comms/bridge.js` (`BRIDGE_TOKEN` / `x-bridge-token`).
+- Added peers config validation in `interlateral_comms/bridge-send.js`.
+
+2. **Hardening and reliability fixes**
+- Added bridge health identity fields (`service`, `bridge_version`, `mesh_id`, plus team/session identity).
+- Added queue depth cap in bridge to reduce unbounded queue growth risk.
+- Moved bridge PID/log runtime artifacts from global `/tmp` to repo-local `.runtime` in bootstrap flow.
+- Updated `interlateral_comms/setup-peers.sh` to use DNS resolution check and warn when fallback IP cannot be auto-detected.
+
+3. **Identity/routing clarity across teams (major anti-confusion update)**
+- Added shared identity module: `interlateral_dna/identity.js`.
+- Added message provenance stamping across relay paths:
+  `[ID team=<team> sender=<sender> host=<host> sid=<session>]`.
+- Added per-wake session identity generation/export in `scripts/wake-up.sh`.
+- Added persisted identity file: `interlateral_dna/session_identity.json`.
+- Added peer identity visibility and team-id collision warnings in bootstrap cross-team checks.
+
+4. **Documentation updates (implemented, needs review for accuracy/completeness)**
+- Updated cross-team docs: `interlateral_dna/LIVE_COMMS.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `ANTIGRAVITY.md`.
+- Updated conformance spec: `interlateral_comms_monitor/docs/INTERNALS_CONFORMANCE.md` (Section 19).
+
+### ROADMAP ITEMS CREATED TO PRESERVE CONTEXT
+
+Check `ROADMAP.md` for preserved follow-up context:
+
+- `NOW` item: **Cross-Team Comms Security Guardrail (From Combined Reviews)**  
+  (auth guardrail in `--cross-team` startup behavior)
+
+- `NEXT` item: **Cross-Team Comms Deferred Follow-Ups (Context Preservation)**  
+  (non-blocking improvements retained for later)
+
+### NEXT ITEMS TO COMPLETE (IN ORDER)
+
+1. **Do now before broad cross-team use:** enforce auth guardrail in cross-team startup path (fail/hard-warn when `BRIDGE_TOKEN` missing).
+2. **Quick operational validation:** verify unique `INTERLATERAL_TEAM_ID` per machine and confirm identity stamps appear end-to-end.
+3. **Then defer safely to roadmap:** setup auto-fill UX, AG async ack model, resolution caching, and remaining hardening items listed in `ROADMAP.md`.
+
 ## Review Scope
 
 Reviewers and breakers should evaluate the following artifacts:

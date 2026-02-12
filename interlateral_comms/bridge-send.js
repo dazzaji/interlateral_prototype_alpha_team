@@ -11,6 +11,9 @@
 //   --target  Agent: cc, codex, gemini, ag
 //   --msg     Message to send
 //   --port    Bridge port (default: 3099)
+//   --token   Bridge token (or use BRIDGE_TOKEN env)
+//   --sender  Sender id label for identity stamp
+//   --no-stamp Disable identity stamp prefix
 //
 // Precedence: --host overrides --peer when both are provided.
 // Resolution order for --peer: try .local hostname (2-3s timeout), then fallback_ip.
@@ -18,7 +21,8 @@
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const dns = require('dns').promises;
+const os = require('os');
 
 const args = process.argv.slice(2);
 
@@ -33,6 +37,14 @@ const peerArg = getArg('--peer');
 const target = getArg('--target');
 const msg = getArg('--msg');
 const portArg = getArg('--port');
+const tokenArg = getArg('--token');
+const senderArg = getArg('--sender');
+const noStamp = args.includes('--no-stamp');
+const bridgeToken = tokenArg || process.env.BRIDGE_TOKEN || '';
+const DNS_TIMEOUT_MS = parseInt(process.env.BRIDGE_DNS_TIMEOUT_MS || '2500', 10);
+const TEAM_ID = process.env.INTERLATERAL_TEAM_ID || process.env.TEAM_ID || 'alpha';
+const SESSION_ID = process.env.INTERLATERAL_SESSION_ID || process.env.OTEL_SESSION_ID || `session_${Date.now()}`;
+const SENDER_ID = senderArg || process.env.INTERLATERAL_SENDER || 'relay';
 
 // Validate: need either --host or --peer, plus --target and --msg
 if ((!hostArg && !peerArg) || !target || !msg) {
@@ -44,6 +56,9 @@ if ((!hostArg && !peerArg) || !target || !msg) {
   console.error('  --target  Agent: cc, codex, gemini, ag');
   console.error('  --msg     Message to send');
   console.error('  --port    Bridge port (default: from peers.json or 3099)');
+  console.error('  --token   Optional auth token (or BRIDGE_TOKEN env)');
+  console.error('  --sender  Optional sender label for identity stamp');
+  console.error('  --no-stamp Disable identity stamp prefix');
   process.exit(1);
 }
 
@@ -69,13 +84,35 @@ function resolvePeer(peerName) {
     process.exit(1);
   }
 
-  if (!peers.peers || !peers.peers[peerName]) {
+  if (!peers || typeof peers !== 'object' || !peers.peers || typeof peers.peers !== 'object') {
+    console.error('ERROR: peers.json is malformed (missing object key: peers)');
+    process.exit(1);
+  }
+
+  if (!peers.peers[peerName]) {
     console.error(`ERROR: Unknown peer '${peerName}' — check peers.json`);
     console.error(`  Available peers: ${Object.keys(peers.peers || {}).join(', ')}`);
     process.exit(1);
   }
 
   const peer = peers.peers[peerName];
+  if (!peer || typeof peer !== 'object') {
+    console.error(`ERROR: Peer '${peerName}' config is malformed (expected object)`);
+    process.exit(1);
+  }
+  if (!peer.host || typeof peer.host !== 'string') {
+    console.error(`ERROR: Peer '${peerName}' is missing valid string field 'host'`);
+    process.exit(1);
+  }
+  if (peer.port !== undefined && !(Number.isInteger(peer.port) || /^\d+$/.test(String(peer.port)))) {
+    console.error(`ERROR: Peer '${peerName}' has invalid 'port' (must be integer)`);
+    process.exit(1);
+  }
+  if (peer.fallback_ip !== undefined && peer.fallback_ip !== null && typeof peer.fallback_ip !== 'string') {
+    console.error(`ERROR: Peer '${peerName}' has invalid 'fallback_ip' (must be string)`);
+    process.exit(1);
+  }
+
   return {
     host: peer.host,
     port: peer.port || 3099,
@@ -84,37 +121,45 @@ function resolvePeer(peerName) {
 }
 
 /**
- * Test if a hostname resolves by attempting a DNS lookup via ping with timeout.
- * Returns true if resolvable, false otherwise.
+ * Resolve a hostname to IP via DNS with timeout.
+ * Returns resolved IP string, or null on timeout/failure.
  */
-function testResolves(hostname, timeoutSec) {
+async function resolveHostname(hostname, timeoutMs) {
   try {
-    execSync(`ping -c 1 -W ${timeoutSec} "${hostname}" > /dev/null 2>&1`, { timeout: (timeoutSec + 1) * 1000 });
-    return true;
+    const lookup = dns.lookup(hostname, { family: 0, all: false });
+    const timeout = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('dns lookup timeout')), timeoutMs);
+    });
+    const result = await Promise.race([lookup, timeout]);
+    return result && result.address ? result.address : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/**
- * Send the message to the bridge at the given host:port.
- */
-function sendMessage(host, port, resolvedFrom) {
+function sendWithOptionalToken(host, port, resolvedFrom) {
+  const identityStamp = `[ID team=${TEAM_ID} sender=${SENDER_ID} host=${os.hostname()} sid=${SESSION_ID}]`;
+  const stampedMessage = noStamp || msg.startsWith('[ID ') ? msg : `${identityStamp} ${msg}`;
+  const data = JSON.stringify({ target, message: stampedMessage });
   if (resolvedFrom) {
     console.log(`[bridge-send] Resolved ${resolvedFrom} → ${host}:${port}`);
+    console.log(`[bridge-send] Sender identity: team=${TEAM_ID} sender=${SENDER_ID} sid=${SESSION_ID}`);
   }
 
-  const data = JSON.stringify({ target, message: msg });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(data)
+  };
+  if (bridgeToken) {
+    headers['x-bridge-token'] = bridgeToken;
+  }
 
   const req = http.request({
     hostname: host,
     port: parseInt(port, 10),
     path: '/inject',
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(data)
-    },
+    headers,
     timeout: 15000
   }, (res) => {
     let body = '';
@@ -150,27 +195,31 @@ function sendMessage(host, port, resolvedFrom) {
   req.end();
 }
 
-// --- Main logic ---
+async function main() {
+  // --- Main logic ---
 
-// Precedence: --host overrides --peer
-if (hostArg) {
-  const port = portArg || '3099';
-  if (peerArg) {
-    console.log(`[bridge-send] --host provided, ignoring --peer '${peerArg}'`);
+  // Precedence: --host overrides --peer
+  if (hostArg) {
+    const port = portArg || '3099';
+    if (peerArg) {
+      console.log(`[bridge-send] --host provided, ignoring --peer '${peerArg}'`);
+    }
+    sendWithOptionalToken(hostArg, port, null);
+    return;
   }
-  sendMessage(hostArg, port, null);
-} else {
+
   // --peer mode: resolve via peers.json
   const peer = resolvePeer(peerArg);
   const port = portArg || String(peer.port);
 
-  // Try .local hostname first (2s timeout for mDNS resolution)
+  // Try .local hostname first using DNS lookup with bounded timeout
   console.log(`[bridge-send] Trying ${peer.host}...`);
-  if (testResolves(peer.host, 2)) {
-    sendMessage(peer.host, port, `${peerArg} → ${peer.host}`);
+  const resolvedIp = await resolveHostname(peer.host, DNS_TIMEOUT_MS);
+  if (resolvedIp) {
+    sendWithOptionalToken(resolvedIp, port, `${peerArg} → ${peer.host} (${resolvedIp})`);
   } else if (peer.fallback_ip) {
     console.log(`[bridge-send] mDNS resolution failed for ${peer.host}, using fallback_ip: ${peer.fallback_ip}`);
-    sendMessage(peer.fallback_ip, port, `${peerArg} → fallback ${peer.fallback_ip}`);
+    sendWithOptionalToken(peer.fallback_ip, port, `${peerArg} → fallback ${peer.fallback_ip}`);
   } else {
     console.error(`ERROR: Cannot resolve ${peer.host} and no fallback_ip configured for peer '${peerArg}'.`);
     console.error('  Options:');
@@ -179,3 +228,8 @@ if (hostArg) {
     process.exit(1);
   }
 }
+
+main().catch((e) => {
+  console.error(`ERROR: ${e.message}`);
+  process.exit(1);
+});

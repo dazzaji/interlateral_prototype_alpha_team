@@ -1,7 +1,7 @@
 # Internals Conformance & Anti-Regression Checklist
 
-**Version:** 1.8
-**Date:** 2026-02-06
+**Version:** 1.9
+**Date:** 2026-02-12
 **Authors:** Claude Code (CC), with reviews by AG, Codex, and Gemini
 **Purpose:** Comprehensive checklist for AI agents to verify conformance and prevent regressions
 
@@ -722,6 +722,15 @@ wake-up.sh -> bootstrap-full.sh -> AG, Dashboard, tmux
 | 12.2.3 | Dashboard injection on localhost only | MEDIUM | Not exposed to network |
 
 **Note:** Dashboard currently has no authentication. Only run on localhost or trusted networks.
+
+### 12.3 Cross-Team Auth Guardrail (CRITICAL)
+
+| # | Check | Severity | Verification |
+|---|-------|----------|--------------|
+| 12.3.1 | Cross-team mode requires `BRIDGE_TOKEN` by default | CRITICAL | `CROSS_TEAM=true BRIDGE_TOKEN= bash scripts/wake-up.sh 2>&1 \| grep -q "ERROR"` |
+| 12.3.2 | `BRIDGE_ALLOW_NO_AUTH=true` overrides the guardrail | HIGH | `CROSS_TEAM=true BRIDGE_ALLOW_NO_AUTH=true bash -n scripts/wake-up.sh` |
+| 12.3.3 | Bootstrap also enforces the guardrail (defense-in-depth) | CRITICAL | `CROSS_TEAM=true BRIDGE_TOKEN= bash scripts/bootstrap-full.sh 2>&1 \| grep -q "BLOCKED"` |
+| 12.3.4 | Bridge server rejects unauthenticated `/inject` when `BRIDGE_TOKEN` is set | CRITICAL | See Section 19.1.8 |
 
 ---
 
@@ -1515,6 +1524,9 @@ The cross-team-comms system allows agents on separate machines to communicate vi
 | 19.1.5 | `/read/:agent` is NOT behind mutex (idempotent, doesn't touch tmux input) | BY DESIGN |
 | 19.1.6 | Valid targets: `cc`, `codex`, `gemini`, `ag` — validated before injection | CRITICAL |
 | 19.1.7 | 5000 char message limit enforced | IMPORTANT |
+| 19.1.8 | Optional auth: when `BRIDGE_TOKEN` is set, `/inject` requires `x-bridge-token` | CRITICAL |
+| 19.1.9 | Queue depth capped (`BRIDGE_MAX_QUEUE_DEPTH`) to avoid unbounded memory growth | IMPORTANT |
+| 19.1.10 | `/health` and `/status` expose identity fields (`team_id`, `session_id`, `mesh_id`) | IMPORTANT |
 
 ### 19.2 Bridge Client (`bridge-send.js`)
 
@@ -1523,20 +1535,27 @@ The cross-team-comms system allows agents on separate machines to communicate vi
 | 19.2.1 | `--host` overrides `--peer` when both provided | IMPORTANT |
 | 19.2.2 | Unknown `--peer` name fails fast with available peers list | IMPORTANT |
 | 19.2.3 | Missing `peers.json` produces clear error with setup instructions | IMPORTANT |
-| 19.2.4 | Resolution order: `.local` hostname (2-3s timeout) → `fallback_ip` → error | IMPORTANT |
+| 19.2.4 | Resolution order: DNS lookup on `.local` (bounded timeout) → `fallback_ip` → error | IMPORTANT |
 | 19.2.5 | Resolved address logged on every send | INFO |
-| 19.2.6 | Read-only: does not write host data outside repo | IMPORTANT |
-| 19.2.7 | 15-second HTTP request timeout | INFO |
+| 19.2.6 | Optional auth token forwarded via env/`--token` as `x-bridge-token` | IMPORTANT |
+| 19.2.7 | Read-only: does not write host data outside repo | IMPORTANT |
+| 19.2.8 | 15-second HTTP request timeout | INFO |
+| 19.2.9 | `peers.json` structure validated before use (`peers`, `host`, `port` type checks) | IMPORTANT |
+| 19.2.10 | Outbound relays prepend identity stamp (`[ID team=... sender=... host=... sid=...]`) unless disabled | IMPORTANT |
 
 ### 19.3 Bootstrap Integration
 
 | Check | What | Severity |
 |-------|------|----------|
 | 19.3.1 | Bridge steps (6-7) only run when `CROSS_TEAM=true` | CRITICAL — default OFF |
-| 19.3.2 | PID file lifecycle at `/tmp/interlateral_bridge.pid` | IMPORTANT |
-| 19.3.3 | Health check validates actual response, not just port occupancy | IMPORTANT |
+| 19.3.2 | PID/log files live under repo `.runtime/` (not global `/tmp`) | IMPORTANT |
+| 19.3.3 | Health check validates bridge identity (`service":"interlateral-bridge`) not generic port content | IMPORTANT |
 | 19.3.4 | Fail-soft: bridge failure never blocks wake-up | CRITICAL |
 | 19.3.5 | Peer health check: 5s timeout + 1 retry with 3s backoff | INFO |
+| 19.3.6 | Peer health output prints remote identity and warns on team-id collision | IMPORTANT |
+| 19.3.7 | **Auth guardrail:** `wake-up.sh --cross-team` exits 1 when `BRIDGE_TOKEN` is unset (unless `BRIDGE_ALLOW_NO_AUTH=true`) | CRITICAL |
+| 19.3.8 | **Auth guardrail:** `bootstrap-full.sh` blocks bridge start when `BRIDGE_TOKEN` is unset and `BRIDGE_ALLOW_NO_AUTH` is not `true` | CRITICAL |
+| 19.3.9 | Auth guardrail override (`BRIDGE_ALLOW_NO_AUTH=true`) prints explicit warning about unauthenticated operation | IMPORTANT |
 
 ### 19.4 Configuration (`peers.json`)
 
@@ -1545,14 +1564,16 @@ The cross-team-comms system allows agents on separate machines to communicate vi
 | 19.4.1 | `peers.json` is in `.gitignore` (machine-specific) | IMPORTANT |
 | 19.4.2 | `peers.json.example` is checked into repo (template) | IMPORTANT |
 | 19.4.3 | `fallback_ip` is a first-class field (required for hotspot networks) | IMPORTANT |
-| 19.4.4 | `setup-peers.sh` validates mDNS and discovers hostname | INFO |
+| 19.4.4 | `setup-peers.sh` validates `.local` DNS resolution and discovers hostname | INFO |
+| 19.4.5 | `setup-peers.sh` warns when local interface IP cannot be detected | INFO |
 
 ### 19.5 Operational Constraints
 
 - **CC is cross-team coordinator.** CX and Gemini interpret injected commands as conversation, not shell commands.
 - **AG cross-team: UNTESTED.** `ag.js send` delays may push bridge 15s timeout.
 - **mDNS fails on iPhone hotspots.** `fallback_ip` handles this automatically.
-- **Codex sandbox:** Cannot run `bridge-send.js` directly. Outbox pattern stays local-only.
+- **Codex sandbox:** ability to run `bridge-send.js` is environment/profile dependent. Outbox pattern remains local-only fallback.
+- **Identity discipline required:** each team must set unique `INTERLATERAL_TEAM_ID` to avoid same-role routing confusion.
 
 ### 19.6 Code Locations
 

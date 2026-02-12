@@ -514,10 +514,29 @@ When `--cross-team` is passed to `wake-up.sh`, the bootstrap starts an HTTP brid
 
 **CC is the cross-team coordinator.** Only CC should run `bridge-send.js`. Other agents (CX, Gemini) interpret injected commands as conversation, not commands to execute.
 
+### Auth Requirement (Security Guardrail)
+
+**Cross-team mode requires `BRIDGE_TOKEN` by default.** Without it, `wake-up.sh --cross-team` exits with an error and the bridge will not start.
+
+```bash
+# Required: set a shared secret on ALL peer machines
+export BRIDGE_TOKEN=your-shared-secret
+./scripts/wake-up.sh --cross-team "Your prompt"
+
+# Override (NOT recommended on shared/public networks):
+export BRIDGE_ALLOW_NO_AUTH=true
+./scripts/wake-up.sh --cross-team "Your prompt"
+```
+
+The guardrail exists at two levels (defense-in-depth):
+1. **`wake-up.sh`** — hard exit before bootstrap even runs
+2. **`bootstrap-full.sh`** — blocks bridge start (catches manual bootstrap runs)
+
 ### Sending to Remote Agents
 
 ```bash
-# Send to any agent on the peer team
+# Send to any agent on the peer team (BRIDGE_TOKEN must be set)
+export BRIDGE_TOKEN=your-shared-secret
 node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello"
 node interlateral_comms/bridge-send.js --peer beta --target codex --msg "hello"
 node interlateral_comms/bridge-send.js --peer beta --target gemini --msg "hello"
@@ -529,12 +548,15 @@ node interlateral_comms/bridge-send.js --host 172.20.10.5 --target cc --msg "hel
 ### Resolution Order
 
 `--peer` resolves via `interlateral_comms/peers.json`:
-1. Try `.local` hostname (mDNS, 2-3s timeout)
+1. Try `.local` hostname via DNS lookup (bounded timeout)
 2. If mDNS fails → use `fallback_ip`
 3. If no fallback → error with setup instructions
 
+`BRIDGE_TOKEN` is required on the remote bridge — `/inject` requires `x-bridge-token` header (sent automatically by bridge-send when env/`--token` is present).
+
 ### Key Constraints
 
+- **Auth required by default.** Set `BRIDGE_TOKEN` on all machines. `BRIDGE_ALLOW_NO_AUTH=true` overrides (not recommended).
 - **CC-bottleneck:** Only CC reliably sends cross-team. Other agents get messages but won't auto-execute bridge-send commands back.
 - **Same network required.** mDNS works on WiFi/LAN. On iPhone hotspots, `fallback_ip` kicks in automatically.
 - **Bridge mutex:** `/inject` is behind a concurrency lock. `/status` and `/read` are not — concurrent status checks won't queue behind injections.
@@ -544,6 +566,13 @@ node interlateral_comms/bridge-send.js --host 172.20.10.5 --target cc --msg "hel
 ```bash
 cd interlateral_comms && ./setup-peers.sh
 ```
+
+Set team identity and auth before cross-team sessions:
+```bash
+export INTERLATERAL_TEAM_ID=alpha   # beta on peer machine
+export BRIDGE_TOKEN=your-shared-secret  # same on all peers
+```
+`wake-up.sh` will auto-generate `INTERLATERAL_SESSION_ID` and persist it to `interlateral_dna/session_identity.json`.
 
 See `LIVE_COMMS.md` for the full cross-team route table and cheat sheet.
 

@@ -297,6 +297,9 @@ When `--cross-team` is enabled, agents on other machines can send messages to yo
 # You CAN do this (but CC normally handles it):
 node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from gemini"
 
+# If bridge auth is enabled:
+BRIDGE_TOKEN=shared-secret node interlateral_comms/bridge-send.js --peer beta --target cc --msg "hello from gemini"
+
 # Check if remote bridge is up:
 curl -s http://AIs-MacBook-Pro.local:3099/health
 ```

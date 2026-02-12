@@ -25,6 +25,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
+cross_team_auth_guardrail() {
+    if [ "${CROSS_TEAM:-false}" = "true" ] && [ -z "${BRIDGE_TOKEN:-}" ] && [ "${BRIDGE_ALLOW_NO_AUTH:-false}" != "true" ]; then
+        echo "[6/8] Cross-team-comms: BLOCKED (BRIDGE_TOKEN not set)"
+        echo ""
+        echo "  ERROR: Cross-team mode requires BRIDGE_TOKEN for security."
+        echo "  Without auth, any device on the network can inject agent messages."
+        echo ""
+        echo "  Fix: export BRIDGE_TOKEN=your-shared-secret"
+        echo "  Override: export BRIDGE_ALLOW_NO_AUTH=true"
+        echo ""
+        return 1
+    fi
+    return 0
+}
+
 ###############################################################################
 # TMUX SOCKET CONFIGURATION
 #
@@ -47,6 +62,11 @@ echo ""
 
 # Track failures for final status
 BOOTSTRAP_OK=true
+
+# Fail closed early for cross-team bootstrap requests without auth.
+if ! cross_team_auth_guardrail; then
+    exit 1
+fi
 
 ###############################################################################
 # 0. SESSION BOUNDARY MARKER (Fresh Start)
@@ -402,13 +422,26 @@ fi
 # Only runs when CROSS_TEAM=true (via wake-up.sh --cross-team).
 # Default: SKIPPED. Most sessions are single-team on one machine.
 ###############################################################################
+BRIDGE_PORT="${BRIDGE_PORT:-3099}"
 if [ "${CROSS_TEAM:-false}" = "true" ]; then
+
+# AUTH GUARDRAIL (defense-in-depth — wake-up.sh checks first, this catches manual runs)
+if ! cross_team_auth_guardrail; then
+    echo "[7/8] Peer health checks: SKIPPED (blocked by auth guardrail)"
+    BOOTSTRAP_OK=false
+else
+# --- Auth guardrail passed — proceed with bridge start ---
+if [ -z "${BRIDGE_TOKEN:-}" ]; then
+    echo "  WARNING: BRIDGE_TOKEN not set (override active). Bridge running WITHOUT auth."
+fi
 
 echo "[6/8] Starting cross-team-comms bridge..."
 
 BRIDGE_DIR="$REPO_ROOT/interlateral_comms"
-BRIDGE_PID_FILE="/tmp/interlateral_bridge.pid"
-BRIDGE_PORT="${BRIDGE_PORT:-3099}"
+BRIDGE_RUNTIME_DIR="$REPO_ROOT/.runtime"
+mkdir -p "$BRIDGE_RUNTIME_DIR"
+BRIDGE_PID_FILE="$BRIDGE_RUNTIME_DIR/interlateral_bridge.pid"
+BRIDGE_LOG_FILE="$BRIDGE_RUNTIME_DIR/interlateral_bridge.log"
 
 # Clean up stale PID file if process is dead
 if [ -f "$BRIDGE_PID_FILE" ]; then
@@ -420,7 +453,7 @@ if [ -f "$BRIDGE_PID_FILE" ]; then
 fi
 
 # Check bridge health — verify actual response, not just port occupancy
-if curl -s --connect-timeout 3 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+if curl -s --connect-timeout 3 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q '"service":"interlateral-bridge"'; then
     echo "  Cross-machine bridge already running and healthy on :${BRIDGE_PORT}"
 else
     # Kill anything tracked by our PID file that isn't responding correctly
@@ -433,18 +466,18 @@ else
     # Start bridge with PID tracking — fail soft, never block wake-up
     if [ -f "$BRIDGE_DIR/bridge.js" ]; then
         echo "  Starting cross-machine bridge..."
-        (cd "$BRIDGE_DIR" && node bridge.js > /tmp/interlateral_bridge.log 2>&1 &
+        (cd "$BRIDGE_DIR" && node bridge.js > "$BRIDGE_LOG_FILE" 2>&1 &
          echo $! > "$BRIDGE_PID_FILE")
 
         # Brief wait + verify
         sleep 1
-        if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+        if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q '"service":"interlateral-bridge"'; then
             echo "  Cross-machine bridge started on :${BRIDGE_PORT} (PID: $(cat "$BRIDGE_PID_FILE" 2>/dev/null))"
             echo "  NOTE: macOS may prompt to allow incoming connections on port ${BRIDGE_PORT}."
             echo "        If peer machines cannot reach this bridge, check System Settings > Firewall."
         else
             echo "  WARNING: Bridge started but health check not responding yet."
-            echo "  It may need a moment. Log: /tmp/interlateral_bridge.log"
+            echo "  It may need a moment. Log: $BRIDGE_LOG_FILE"
         fi
     else
         echo "  WARNING: bridge.js not found at $BRIDGE_DIR/bridge.js. Skipping cross-machine bridge."
@@ -476,8 +509,26 @@ if [ -f "$PEERS_FILE" ]; then
         while IFS='|' read -r PEER_NAME PEER_HOST PEER_PORT PEER_FALLBACK; do
             [ -z "$PEER_NAME" ] && continue
             PEER_URL="http://${PEER_HOST}:${PEER_PORT}/health"
-            if curl -s --connect-timeout 5 "$PEER_URL" > /dev/null 2>&1; then
+            PEER_HEALTH_JSON=$(curl -s --connect-timeout 5 "$PEER_URL" 2>/dev/null || true)
+            if [ -n "$PEER_HEALTH_JSON" ]; then
                 echo "  Peer '$PEER_NAME' ($PEER_HOST:$PEER_PORT): REACHABLE"
+                REMOTE_IDENTITY=$(printf "%s" "$PEER_HEALTH_JSON" | node -e "
+                  try {
+                    const h = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+                    const team = h.team_id || 'unknown';
+                    const sid = h.session_id || 'unknown';
+                    const host = h.hostname || h.host || 'unknown';
+                    console.log(team + '|' + sid + '|' + host);
+                  } catch (e) { console.log('unknown|unknown|unknown'); }
+                " 2>/dev/null || echo "unknown|unknown|unknown")
+                REMOTE_TEAM=$(echo "$REMOTE_IDENTITY" | cut -d'|' -f1)
+                REMOTE_SID=$(echo "$REMOTE_IDENTITY" | cut -d'|' -f2)
+                REMOTE_HOST=$(echo "$REMOTE_IDENTITY" | cut -d'|' -f3)
+                echo "    identity: team=$REMOTE_TEAM host=$REMOTE_HOST sid=$REMOTE_SID"
+                if [ "$REMOTE_TEAM" = "${INTERLATERAL_TEAM_ID:-alpha}" ]; then
+                    echo "    ⚠ WARNING: Peer team_id matches local team_id (${INTERLATERAL_TEAM_ID:-alpha})."
+                    echo "      This can cause routing confusion (e.g., two 'cc' identities)."
+                fi
             else
                 echo "  Peer '$PEER_NAME' ($PEER_HOST:$PEER_PORT): not reachable, retrying in 3s..."
                 sleep 3
@@ -502,6 +553,8 @@ else
     echo "  peers.json not found — skipping peer checks."
     echo "  Run: cd interlateral_comms && ./setup-peers.sh"
 fi
+
+fi  # end auth guardrail (passed / blocked)
 
 else
     echo "[6/8] Cross-team-comms: SKIPPED (use --cross-team to enable)"
@@ -575,7 +628,7 @@ else
 fi
 
 # Check cross-machine bridge (optional - doesn't fail bootstrap if missing)
-if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q "hostname"; then
+if curl -s --connect-timeout 2 "http://localhost:${BRIDGE_PORT}/health" 2>/dev/null | grep -q '"service":"interlateral-bridge"'; then
     echo "  Bridge:     READY (port ${BRIDGE_PORT})"
 else
     echo "  Bridge:     NOT RUNNING (cross-machine comms unavailable)"

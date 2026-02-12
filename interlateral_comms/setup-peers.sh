@@ -26,8 +26,9 @@ echo "Detected local hostname: ${LOCAL_HOSTNAME}.local"
 # Step 2: Validate .local reachability
 echo ""
 echo "Testing mDNS resolution..."
-if ping -c 1 -W 2 "${LOCAL_HOSTNAME}.local" > /dev/null 2>&1; then
-    RESOLVED_IP=$(ping -c 1 -W 2 "${LOCAL_HOSTNAME}.local" 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if dscacheutil -q host -a name "${LOCAL_HOSTNAME}.local" > /dev/null 2>&1; then
+    RESOLVED_IP=$(dscacheutil -q host -a name "${LOCAL_HOSTNAME}.local" 2>/dev/null | awk '/ip_address/ {print $2; exit}')
+    [ -z "${RESOLVED_IP:-}" ] && RESOLVED_IP="unknown"
     echo "  mDNS: ${LOCAL_HOSTNAME}.local resolves to ${RESOLVED_IP:-unknown}"
 else
     echo "  WARNING: ${LOCAL_HOSTNAME}.local did NOT resolve via mDNS."
@@ -41,6 +42,10 @@ if [ -z "$CURRENT_IP" ]; then
     CURRENT_IP=$(ipconfig getifaddr en1 2>/dev/null || echo "unknown")
 fi
 echo "  Current IP: ${CURRENT_IP}"
+if [ "$CURRENT_IP" = "unknown" ]; then
+    echo "  WARNING: Could not detect local interface IP (en0/en1)."
+    echo "  Set fallback_ip manually in peers.json."
+fi
 
 # Step 4: Check template exists
 if [ ! -f peers.json.example ]; then

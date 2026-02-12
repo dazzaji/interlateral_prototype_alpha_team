@@ -295,6 +295,8 @@ When `--cross-team` is enabled, agents on other machines can send messages to yo
 
 **If you receive a cross-team message:** It arrives via `ag.js send` injection, same as a local message from CC. Respond normally.
 
+**If bridge auth is enabled:** remote senders must include `x-bridge-token` (provided via `bridge-send.js` using `BRIDGE_TOKEN` or `--token`).
+
 **You cannot send cross-team directly.** AG does not have shell access to run `bridge-send.js`. CC handles cross-team sends on your behalf.
 
 See `LIVE_COMMS.md` for the full cross-team route table.
