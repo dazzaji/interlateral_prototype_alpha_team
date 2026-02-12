@@ -11,3 +11,7 @@
    Message will go to shell prompt, not CC input.
    (Sending anyway in case this is intentional)
 
+⚠️  Warning: tmux pane is running 'zsh', not CC.
+   Message will go to shell prompt, not CC input.
+   (Sending anyway in case this is intentional)
+

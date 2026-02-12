@@ -1,37 +1,29 @@
-Beta Team: Start Cross-Team Bridge and ACK Alpha
+BETA: ONE-SHOT RECOVERY + ACK TO ALPHA
 
-1) Go to repo
+Run exactly this block on Beta:
+
 ```bash
 cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-```
-
-2) Set shared token (must match Alpha)
-```bash
 export BRIDGE_TOKEN=interlateral-2026
-```
-
-3) Start cross-team mode
-```bash
+export INTERLATERAL_TEAM_ID=beta
+pkill -f "node.*interlateral_comms/bridge.js" 2>/dev/null || true
 ./scripts/wake-up.sh --cross-team "Cross-team live test with Alpha"
-```
-
-4) Verify your bridge is up
-```bash
+echo "=== BETA HEALTH ==="
 curl -s http://localhost:3099/health
-```
-Expected: JSON including `"ok":true` and `"service":"interlateral-bridge"`.
-
-5) Send ACK to Alpha (from Beta machine)
-```bash
+echo
+echo "=== BETA NETWORK ==="
+hostname
+ipconfig getifaddr en0 || true
+echo "=== ACK TO ALPHA ==="
 node interlateral_comms/bridge-send.js \
   --peer alpha \
   --target cc \
   --sender cc-beta \
-  --msg "[COORD] Beta bridge is up. Please send test packet."
+  --msg "[COORD] Beta bridge restarted and reachable. Ready for Alpha->Beta round-trip now."
 ```
 
-Optional cleanup (if needed first):
+If `ipconfig getifaddr en0` is empty, run:
+
 ```bash
-tmux -S /tmp/interlateral-tmux.sock kill-server 2>/dev/null
-pkill -f "node.*bridge.js" 2>/dev/null
+ipconfig getifaddr en1 || true
 ```
