@@ -27,3 +27,21 @@ If `ipconfig getifaddr en0` is empty, run:
 ```bash
 ipconfig getifaddr en1 || true
 ```
+
+ALPHA: REQUIRED RETURN-PATH CHECK (FOR 2-WAY CONFIRMATION)
+
+Once Beta sends ACK, Alpha should run this on Alpha machine:
+
+```bash
+cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
+export BRIDGE_TOKEN=interlateral-2026
+curl -s http://localhost:3099/health
+node interlateral_comms/bridge-send.js \
+  --host 192.168.8.216 \
+  --target cc \
+  --sender cc-alpha \
+  --msg "[COORD] Alpha->Beta return-path test. Please confirm receipt on Beta."
+```
+
+Expected success output on Alpha:
+- `Delivered to cc on 192.168.8.216:3099`
