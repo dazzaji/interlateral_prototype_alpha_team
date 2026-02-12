@@ -1,47 +1,63 @@
-BETA: ONE-SHOT RECOVERY + ACK TO ALPHA
+Cross-Team Full Reset + Reboot + Project Kickoff
 
-Run exactly this block on Beta:
+Run this procedure on BOTH Alpha and Beta machines.
+
+1) Clean shutdown
 
 ```bash
 cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-export BRIDGE_TOKEN=interlateral-2026
-export INTERLATERAL_TEAM_ID=beta
+./scripts/shutdown.sh
 pkill -f "node.*interlateral_comms/bridge.js" 2>/dev/null || true
-./scripts/wake-up.sh --cross-team "Cross-team live test with Alpha"
-echo "=== BETA HEALTH ==="
-curl -s http://localhost:3099/health
-echo
-echo "=== BETA NETWORK ==="
-hostname
-ipconfig getifaddr en0 || true
-echo "=== ACK TO ALPHA ==="
-node interlateral_comms/bridge-send.js \
-  --peer alpha \
-  --target cc \
-  --sender cc-beta \
-  --msg "[COORD] Beta bridge restarted and reachable. Ready for Alpha->Beta round-trip now."
+tmux -S /tmp/interlateral-tmux.sock kill-server 2>/dev/null || true
 ```
 
-If `ipconfig getifaddr en0` is empty, run:
-
-```bash
-ipconfig getifaddr en1 || true
-```
-
-ALPHA: REQUIRED RETURN-PATH CHECK (FOR 2-WAY CONFIRMATION)
-
-Once Beta sends ACK, Alpha should run this on Alpha machine:
+2) Fresh startup (Alpha)
 
 ```bash
 cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
+export INTERLATERAL_TEAM_ID=alpha
 export BRIDGE_TOKEN=interlateral-2026
-curl -s http://localhost:3099/health
-node interlateral_comms/bridge-send.js \
-  --host 192.168.8.216 \
-  --target cc \
-  --sender cc-alpha \
-  --msg "[COORD] Alpha->Beta return-path test. Please confirm receipt on Beta."
+./scripts/wake-up.sh --cross-team "Cross-team project kickoff: collaborate on <PROJECT_NAME>. Confirm ACKs and coordinate through bridge."
 ```
 
-Expected success output on Alpha:
-- `Delivered to cc on 192.168.8.216:3099`
+3) Fresh startup (Beta)
+
+```bash
+cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
+export INTERLATERAL_TEAM_ID=beta
+export BRIDGE_TOKEN=interlateral-2026
+./scripts/wake-up.sh --cross-team "Cross-team project kickoff: collaborate on <PROJECT_NAME>. Confirm ACKs and coordinate through bridge."
+```
+
+4) Quick comms verification (both sides)
+
+```bash
+curl -s http://localhost:3099/health
+```
+
+Optional direct ping check:
+
+```bash
+# From Alpha -> Beta
+node interlateral_comms/bridge-send.js --host 192.168.8.216 --target cc --msg "[COORD] Alpha online and ready."
+
+# From Beta -> Alpha (replace with Alpha IP if needed)
+node interlateral_comms/bridge-send.js --host 192.168.8.124 --target cc --msg "[COORD] Beta online and ready."
+```
+
+5) Kickoff message to both teams
+
+Paste this to both teams:
+
+```text
+Assignment: <PROJECT_NAME>
+
+Cross-team mode is now active. Alpha and Beta should collaborate as one mesh.
+Protocol:
+1) ACK this assignment on both teams.
+2) Share plan and split work clearly.
+3) Exchange progress updates over bridge with identity stamps.
+4) Request/perform cross-team reviews before finalizing.
+5) Report completion with: deliverables, test evidence, open risks.
+```
+
