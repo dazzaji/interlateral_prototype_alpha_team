@@ -8,6 +8,12 @@ Use this when Antigravity is unavailable or you want CLI-only mode (CC + Codex +
 ```bash
 ./scripts/wake-up-no-ag.sh --dangerously-skip-permissions "Read CLAUDE.md. Execute the Wake-Up Protocol. Seek ACK from Codex and Gemini. Once all ACKed, ALL THREE agents ask: What is our assignment?"
 ```
+
+### When booting two laptops on same network with inter-team comms:
+
+```bash
+./scripts/wake-up.sh --cross-team "Cross-team live test with Alpha"
+```
 ___
 
 > **Template repository.** Use it to start new projects where Claude Code (Anthropic), Antigravity (Google Gemini), Codex (OpenAI), and Gemini CLI (Google) collaborate as a multi-agent mesh for long-horizon autonomous work. Supports both **4-agent mode** (CC + AG + Codex + Gemini) and **3-agent CLI mode** (CC + Codex + Gemini).
