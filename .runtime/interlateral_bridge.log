@@ -1,0 +1,9 @@
+[Bridge] Listening on 0.0.0.0:3099
+[Bridge] Service: interlateral-bridge v1.0.0
+[Bridge] Mesh ID: Mac.lan:3099
+[Bridge] Hostname: Mac.lan
+[Bridge] DNA dir: /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team/interlateral_dna
+[Bridge] Valid targets: cc, codex, gemini, ag
+[Bridge] Auth: BRIDGE_TOKEN enabled (x-bridge-token required on /inject)
+[Bridge] Test: curl http://localhost:3099/health
+[Bridge] Inject: curl -X POST http://localhost:3099/inject -H 'Content-Type: application/json' -d '{"target":"cc","message":"hello"}'
