@@ -31,6 +31,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Auto-source .env so users don't need manual exports (BRIDGE_TOKEN, TEAM_ID, etc.)
+[ -f "$REPO_ROOT/.env" ] && source "$REPO_ROOT/.env"
+
 HOST_SHORT="$(hostname -s 2>/dev/null || hostname)"
 
 # Stable per-wake session identity used across local + cross-team messaging

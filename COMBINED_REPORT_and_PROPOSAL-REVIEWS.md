@@ -2,7 +2,42 @@
 
 **Date:** 2026-02-11
 **Managed by:** CC (Alpha Team Lead / HyperDomo)
-**Status:** IN PROGRESS
+**Status:** ALL REMEDIATION COMPLETE — LIVE CROSS-TEAM TEST PENDING
+
+---
+
+## BETA TEAM: LIVE TEST INSTRUCTIONS (2026-02-12)
+
+**All review findings are fixed. One thing left: a live cross-team test between Alpha and Beta.**
+
+### What Beta needs to do
+
+```bash
+# 1. Pull latest
+git pull origin main
+
+# 2. Start with cross-team enabled
+export BRIDGE_TOKEN=interlateral-2026
+./scripts/wake-up.sh --cross-team "Cross-team live test with Alpha"
+```
+
+That's it. Once you're up, tell Alpha. Alpha's CC agent will:
+1. Send a test message to Beta CC
+2. Verify Beta received it with an identity stamp like `[ID team=alpha sender=... host=... sid=...]`
+3. Ask Beta to send one back to Alpha
+4. Confirm round-trip works
+
+### What we're verifying
+
+- Auth guardrail works (bridge won't start without `BRIDGE_TOKEN`)
+- Messages arrive with identity stamps (team, sender, host, session)
+- Round-trip delivery between teams
+
+### The shared secret
+
+`BRIDGE_TOKEN=interlateral-2026` — same on both machines.
+
+---
 
 ## MAJOR UPDATE FOR HANDOFF — 2026-02-12 22:08 UTC
 
