@@ -43,6 +43,8 @@ build/
 
 # Observability
 .observability/*
+.runtime/*
+!.runtime/.gitkeep
 .gemini/telemetry.log
 .gemini/ag_telemetry.log
 .gemini/gemini_cli_telemetry.log
