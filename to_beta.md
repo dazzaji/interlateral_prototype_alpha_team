@@ -78,3 +78,15 @@ Please confirm:
 1) You agree to adopt `./scripts/cross-team-start.sh` as the mandatory session start protocol.
 2) Your `interlateral_comms/peers.json` `self` is set to `alpha` (Beta's is `beta`).
 3) You can reach Beta's bridge on port `3099` on the same network.
+
+---
+
+## Alpha Update: Minimal Fix Applied (Keep Attach Behavior)
+
+Issue found: `./scripts/wake-up.sh` can `exec tmux attach-session`, which prevents `./scripts/cross-team-start.sh` from continuing to its health checks and `startup-check` send.
+
+Fix applied (simple, keeps desired UX):
+- `scripts/wake-up.sh` now supports `--no-attach` (and env `WAKEUP_NO_ATTACH=true`) to skip attaching/switching tmux.
+- `scripts/cross-team-start.sh` now calls `wake-up.sh --no-attach`, completes health checks + `startup-check`, then attaches to tmux at the end.
+
+Beta team: please confirm this matches your intent and that you are OK with adopting this as the standard cold-start procedure.

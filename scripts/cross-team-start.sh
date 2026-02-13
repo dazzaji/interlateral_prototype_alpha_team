@@ -59,12 +59,12 @@ echo "[1/4] Clean shutdown (kills stale tmux + bridge + ports)..."
 pkill -f "node.*interlateral_comms/bridge.js" 2>/dev/null || true
 tmux -S /tmp/interlateral-tmux.sock kill-server 2>/dev/null || true
 
-echo "[2/4] Wake up with cross-team enabled..."
+echo "[2/5] Wake up with cross-team enabled..."
 cd "$REPO_ROOT"
-./scripts/wake-up.sh --cross-team "$PROMPT"
+./scripts/wake-up.sh --cross-team --no-attach "$PROMPT"
 
 echo ""
-echo "[3/4] Verify local bridge health..."
+echo "[3/5] Verify local bridge health..."
 LOCAL_HEALTH="$(curl -s --connect-timeout 3 http://localhost:3099/health || true)"
 if [[ -z "$LOCAL_HEALTH" ]]; then
   echo "ERROR: Local bridge not responding on http://localhost:3099/health"
@@ -77,7 +77,7 @@ echo "$LOCAL_HEALTH" | node -e "
 "
 
 echo ""
-echo "[4/4] Verify peer reachability + send startup check..."
+echo "[4/5] Verify peer reachability + send startup check..."
 
 # Extract peers excluding self; expect 1 for alpha<->beta, but handle multiple.
 PEER_LINES="$(node -e "
@@ -139,3 +139,18 @@ fi
 echo ""
 echo "Cross-team comms bootstrap complete."
 
+echo ""
+echo "[5/5] Attaching to tmux session..."
+
+SESSION_NAME="${CC_TMUX_SESSION:-interlateral-claude}"
+TMUX_SOCKET="${TMUX_SOCKET:-/tmp/interlateral-tmux.sock}"
+
+if command -v tmux >/dev/null 2>&1; then
+  if tmux -S "$TMUX_SOCKET" has-session -t "$SESSION_NAME" 2>/dev/null; then
+    exec tmux -S "$TMUX_SOCKET" attach-session -t "$SESSION_NAME"
+  else
+    echo "WARNING: tmux session '$SESSION_NAME' not found on socket $TMUX_SOCKET"
+  fi
+else
+  echo "WARNING: tmux not found; cannot attach"
+fi

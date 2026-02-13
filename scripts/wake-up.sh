@@ -50,25 +50,28 @@ export INTERLATERAL_TEAM_ID
 source "$SCRIPT_DIR/tmux-config.sh"
 
 # Parse wake-up flags (before passing remaining args to CC)
-HAS_DANGEROUS=0
-CROSS_TEAM=false
-REMAINING_ARGS=()
-for arg in "$@"; do
-    if [[ "$arg" == "--dangerously-skip-permissions" ]]; then
-        HAS_DANGEROUS=1
-        REMAINING_ARGS+=("$arg")
-    elif [[ "$arg" == "--cross-team" ]]; then
-        CROSS_TEAM=true
-    else
-        REMAINING_ARGS+=("$arg")
-    fi
-done
-set -- "${REMAINING_ARGS[@]+"${REMAINING_ARGS[@]}"}"
+	HAS_DANGEROUS=0
+	CROSS_TEAM=false
+	NO_ATTACH=false
+	REMAINING_ARGS=()
+	for arg in "$@"; do
+	    if [[ "$arg" == "--dangerously-skip-permissions" ]]; then
+	        HAS_DANGEROUS=1
+	        REMAINING_ARGS+=("$arg")
+	    elif [[ "$arg" == "--cross-team" ]]; then
+	        CROSS_TEAM=true
+	    elif [[ "$arg" == "--no-attach" ]]; then
+	        NO_ATTACH=true
+	    else
+	        REMAINING_ARGS+=("$arg")
+	    fi
+	done
+	set -- "${REMAINING_ARGS[@]+"${REMAINING_ARGS[@]}"}"
 if [[ "$HAS_DANGEROUS" -eq 0 ]]; then
     set -- --dangerously-skip-permissions "$@"
     echo "[wake-up] Defaulting to --dangerously-skip-permissions"
 fi
-if [[ "$CROSS_TEAM" == true ]]; then
+	if [[ "$CROSS_TEAM" == true ]]; then
     # AUTH GUARDRAIL: Cross-team mode requires BRIDGE_TOKEN by default.
     # Without auth, any device on the same network can inject messages into
     # agent terminals via the HTTP bridge. This is a prompt-injection vector.
@@ -94,8 +97,14 @@ if [[ "$CROSS_TEAM" == true ]]; then
     else
         echo "[wake-up] Bridge auth: ENABLED (BRIDGE_TOKEN set)"
     fi
-    export CROSS_TEAM=true
-fi
+	    export CROSS_TEAM=true
+	fi
+
+	# If set, do not attach/switch tmux client as part of wake-up.
+	# Useful for scripts that need wake-up side effects but must continue running.
+	if [[ "${WAKEUP_NO_ATTACH:-false}" == "true" ]]; then
+	    NO_ATTACH=true
+	fi
 
 # Handle prompt from file if WAKEUP_PROMPT_FILE is set
 if [[ -n "${WAKEUP_PROMPT_FILE:-}" ]] && [[ -f "$WAKEUP_PROMPT_FILE" ]]; then
@@ -254,25 +263,33 @@ if [ -z "${TMUX:-}" ]; then
     # Wait with timeout for fallback attach
     read -t 5 -r || true
 
-    # Fallback: Attach if user hasn't backgrounded us
-    if run_tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-        # logical check: if we are not inside tmux, attach
-        if [ -z "${TMUX:-}" ]; then
-             echo "  [FALLBACK] Attaching to session '$SESSION_NAME'..."
-             exec tmux -S "$TMUX_SOCKET" attach-session -t "$SESSION_NAME"
-        fi
-    fi
-else
+	    # Fallback: Attach if user hasn't backgrounded us
+	    if run_tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+	        # logical check: if we are not inside tmux, attach
+	        if [ -z "${TMUX:-}" ]; then
+	             if [[ "$NO_ATTACH" == true ]]; then
+	                 echo "  [INFO] --no-attach set; not attaching to tmux session '$SESSION_NAME'."
+	                 exit 0
+	             fi
+	             echo "  [FALLBACK] Attaching to session '$SESSION_NAME'..."
+	             exec tmux -S "$TMUX_SOCKET" attach-session -t "$SESSION_NAME"
+	        fi
+	    fi
+	else
     # We are already in a tmux session. Check if it's the right one.
     CURRENT_SESSION=$(run_tmux display-message -p '#S' 2>/dev/null || tmux display-message -p '#S' 2>/dev/null || echo "")
     if [ "$CURRENT_SESSION" = "$SESSION_NAME" ]; then
         echo "  Already inside tmux session '$SESSION_NAME'. Proceeding..."
         exec "$REPO_ROOT/scripts/logged-claude.sh" "$@"
-    else
-        echo "  In a DIFFERENT tmux session ($CURRENT_SESSION). Redirecting to '$SESSION_NAME'..."
-        # Same logic: send command to correct session and switch
-        CMD_TO_RUN="$REPO_ROOT/scripts/logged-claude.sh $(printf '%q ' "$@")"
-        run_tmux send-keys -t "$SESSION_NAME" C-c "cd $(printf '%q' "$REPO_ROOT") && $CMD_TO_RUN" Enter
-        exec tmux -S "$TMUX_SOCKET" switch-client -t "$SESSION_NAME"
-    fi
-fi
+	    else
+	        echo "  In a DIFFERENT tmux session ($CURRENT_SESSION). Redirecting to '$SESSION_NAME'..."
+	        # Same logic: send command to correct session and switch
+	        CMD_TO_RUN="$REPO_ROOT/scripts/logged-claude.sh $(printf '%q ' "$@")"
+	        run_tmux send-keys -t "$SESSION_NAME" C-c "cd $(printf '%q' "$REPO_ROOT") && $CMD_TO_RUN" Enter
+	        if [[ "$NO_ATTACH" == true ]]; then
+	            echo "  [INFO] --no-attach set; not switching tmux client."
+	            exit 0
+	        fi
+	        exec tmux -S "$TMUX_SOCKET" switch-client -t "$SESSION_NAME"
+	    fi
+	fi
