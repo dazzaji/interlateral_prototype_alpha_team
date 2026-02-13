@@ -52,6 +52,7 @@ interlateral_dna/cc_telemetry.log
 interlateral_dna/cc_telemetry_stuck_session.log
 interlateral_dna/codex_telemetry.log
 interlateral_dna/gemini_telemetry.log
+interlateral_dna/session_identity.json
 
 # Cross-machine bridge (machine-specific config)
 interlateral_comms/peers.json
