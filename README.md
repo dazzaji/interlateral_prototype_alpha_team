@@ -12,17 +12,13 @@ Use this when Antigravity is unavailable or you want CLI-only mode (CC + Codex +
 ### When booting two laptops on same network with inter-team comms:
 
 ```bash
-# Machine A (Alpha)
-export INTERLATERAL_TEAM_ID=alpha
-export BRIDGE_TOKEN=your-shared-bridge-token
-./scripts/wake-up.sh --cross-team "Cross-team live test with Beta"
+export BRIDGE_TOKEN='YOUR_REAL_SHARED_TOKEN'
+./scripts/cross-team-start.sh "Cross-team startup (Alpha)"
 ```
 
 ```bash
-# Machine B (Beta)
-export INTERLATERAL_TEAM_ID=beta
-export BRIDGE_TOKEN=your-shared-bridge-token
-./scripts/wake-up.sh --cross-team "Cross-team live test with Alpha"
+export BRIDGE_TOKEN='YOUR_REAL_SHARED_TOKEN'
+./scripts/cross-team-start.sh "Cross-team startup (Beta)"
 ```
 ___
 

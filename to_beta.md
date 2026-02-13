@@ -1,51 +1,60 @@
-Cross-Team Full Reset + Reboot + Project Kickoff
+Cross-Team Cold Start: Deterministic "Just Works" Bring-Up (Alpha <-> Beta)
 
-Run this procedure on BOTH Alpha and Beta machines.
+Goal: eliminate token mismatches (401), stale bridges, and "it worked yesterday" drift.
 
-1) Clean shutdown
+This doc is written to be copy/paste safe on ANY machine. No hardcoded usernames or IPs.
 
-```bash
-cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-./scripts/shutdown.sh
-pkill -f "node.*interlateral_comms/bridge.js" 2>/dev/null || true
-tmux -S /tmp/interlateral-tmux.sock kill-server 2>/dev/null || true
-```
-
-2) Fresh startup (Alpha)
+## Final Protocol (Adopt This)
 
 ```bash
-cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-export INTERLATERAL_TEAM_ID=alpha
-export BRIDGE_TOKEN=interlateral-2026
-./scripts/wake-up.sh --cross-team "Cross-team project kickoff: collaborate on <PROJECT_NAME>. Confirm ACKs and coordinate through bridge."
+# Run on BOTH machines (Alpha and Beta), with the SAME token value.
+cd "$(git rev-parse --show-toplevel)"
+
+# One shared token (must match exactly on both machines)
+export BRIDGE_TOKEN='YOUR_REAL_SHARED_TOKEN'
+
+# Deterministic bring-up: hard reset + wake-up + bridge health + startup-check
+./scripts/cross-team-start.sh "Cross-team startup"
 ```
 
-3) Fresh startup (Beta)
+### Why this works
 
-```bash
-cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-export INTERLATERAL_TEAM_ID=beta
-export BRIDGE_TOKEN=interlateral-2026
-./scripts/wake-up.sh --cross-team "Cross-team project kickoff: collaborate on <PROJECT_NAME>. Confirm ACKs and coordinate through bridge."
-```
+- Forces a clean shutdown first (kills stale `bridge.js` + tmux server) so an old token cannot survive.
+- Sets `INTERLATERAL_TEAM_ID` from `interlateral_comms/peers.json` (`self`) automatically.
+- Starts the full mesh with `wake-up.sh --cross-team`.
+- Verifies local bridge health and sends a `startup-check` to the peer using `--token` explicitly (no env drift).
 
-4) Quick comms verification (both sides)
+### Requirements (must be true on BOTH machines)
+
+- `interlateral_comms/peers.json` exists and is correct.
+- `peers.json.self` is set appropriately on each machine (Alpha machine: `alpha`, Beta machine: `beta`).
+- Network reachability to port `3099` between machines (macOS firewall can block inbound).
+
+### Success criteria (what you should see)
+
+- `curl http://localhost:3099/health` returns `ok:true` and the correct `team_id`.
+- The script reports the peer as reachable and prints a delivered `startup-check` message.
+
+### If it fails (fast triage)
+
+- `401 Unauthorized`: token mismatch. Re-run the protocol on the machine that returned 401 with the same token.
+- Peer not reachable: fix `interlateral_comms/peers.json` host/fallback IPs and check macOS firewall for port `3099`.
+
+## Optional: Manual Sanity Checks
+
+These are optional and should be used only for debugging.
 
 ```bash
 curl -s http://localhost:3099/health
 ```
 
-Optional direct ping check:
-
 ```bash
-# From Alpha -> Beta
-node interlateral_comms/bridge-send.js --host 192.168.8.216 --target cc --msg "[COORD] Alpha online and ready."
-
-# From Beta -> Alpha (replace with Alpha IP if needed)
-node interlateral_comms/bridge-send.js --host 192.168.8.124 --target cc --msg "[COORD] Beta online and ready."
+# Send to peer by name using peers.json (preferred over hardcoded IPs)
+node interlateral_comms/bridge-send.js --peer beta  --token "$BRIDGE_TOKEN" --target codex --msg "[manual-check] alpha->beta"
+node interlateral_comms/bridge-send.js --peer alpha --token "$BRIDGE_TOKEN" --target codex --msg "[manual-check] beta->alpha"
 ```
 
-5) Kickoff message to both teams
+## Kickoff Message (paste to both teams once comms are up)
 
 Paste this to both teams:
 
@@ -63,60 +72,9 @@ Protocol:
 
 ---
 
-## NEW PROPOSAL: Deterministic Cross-Team Auth Bring-Up (Alpha <-> Beta)
+## Request to Alpha Team
 
-Goal: eliminate 401 token mismatches and make cold-start comms repeatable.
-
-Run this on BOTH machines:
-
-1) Set one shared token (must be identical on alpha and beta)
-
-```bash
-export BRIDGE_TOKEN='<SHARED_TOKEN>'
-```
-
-2) Set team ID correctly per machine
-
-```bash
-# Alpha
-export INTERLATERAL_TEAM_ID=alpha
-
-# Beta
-export INTERLATERAL_TEAM_ID=beta
-```
-
-3) Hard restart bridge/session stack so no stale token remains in running processes
-
-```bash
-cd /Users/dazzagreenwood/Documents/GitHub/interlateral_prototype_alpha_team
-./scripts/shutdown.sh
-pkill -f "node.*interlateral_comms/bridge.js" 2>/dev/null || true
-./scripts/wake-up.sh --cross-team "Cross-team startup with explicit token sync"
-```
-
-4) Verify local bridge health on each machine
-
-```bash
-curl -s http://localhost:3099/health
-```
-
-5) Verify auth path BEFORE agent messaging (alpha -> beta example)
-
-```bash
-curl -i -X POST http://192.168.8.216:3099/inject \
-  -H "Content-Type: application/json" \
-  -H "x-bridge-token: $BRIDGE_TOKEN" \
-  -d '{"target":"codex","message":"[auth-test] alpha->beta"}'
-```
-
-Expected: HTTP 200 with `{"ok":true,...}`. If you get 401, beta bridge token does not match and must be restarted with the agreed token.
-
-6) Send real bridge message with explicit token to avoid env drift
-
-```bash
-node interlateral_comms/bridge-send.js --host 192.168.8.216 --token "$BRIDGE_TOKEN" --target codex --msg "[codex-alpha] online"
-```
-
-### Request to Beta Team
-
-Beta team: do you agree to adopt this auth-first startup protocol as the standard cold-start procedure?
+Please confirm:
+1) You agree to adopt `./scripts/cross-team-start.sh` as the mandatory session start protocol.
+2) Your `interlateral_comms/peers.json` `self` is set to `alpha` (Beta's is `beta`).
+3) You can reach Beta's bridge on port `3099` on the same network.
