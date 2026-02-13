@@ -52,6 +52,14 @@ echo "  CROSS-TEAM COLD START (Deterministic)"
 echo "============================================"
 echo "Repo:      $REPO_ROOT"
 echo "Self/team: $INTERLATERAL_TEAM_ID"
+echo -n "Token fp:  "
+if command -v shasum >/dev/null 2>&1; then
+  # Print a short fingerprint so both machines can confirm they set the same token,
+  # without pasting secrets into chat.
+  printf "%s" "$BRIDGE_TOKEN" | shasum -a 256 | awk '{print substr($1,1,12)}'
+else
+  echo "(shasum not found)"
+fi
 echo ""
 
 echo "[1/4] Clean shutdown (kills stale tmux + bridge + ports)..."

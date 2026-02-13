@@ -17,6 +17,12 @@ export BRIDGE_TOKEN='YOUR_REAL_SHARED_TOKEN'
 ./scripts/cross-team-start.sh "Cross-team startup"
 ```
 
+### Critical: Token Must Match (How To Confirm Without Leaking It)
+
+`cross-team-start.sh` prints a short `Token fp:` fingerprint (first 12 hex of SHA-256 of `BRIDGE_TOKEN`).
+
+Cold-start will only work if the `Token fp:` line is identical on BOTH machines.
+
 ### Why this works
 
 - Forces a clean shutdown first (kills stale `bridge.js` + tmux server) so an old token cannot survive.
