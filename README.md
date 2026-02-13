@@ -3,7 +3,17 @@
 ___
 
 ## Lightning Start (CLI-only, no Antigravity)
-Use this when Antigravity is unavailable or you want CLI-only mode (CC + Codex + Gemini):
+
+
+### Use this when you only want Claude Code and Codex:
+
+
+```bash
+./scripts/wake-up-cc-cx.sh --dangerously-skip-permissions 'Execute the Wake-Up Protocol. When you are ready to work say "ACK" and ask "What is our assignment?"'
+```
+
+
+### Use this when Antigravity is unavailable or you want CLI-only mode (CC + Codex + Gemini):
 
 ```bash
 ./scripts/wake-up-no-ag.sh --dangerously-skip-permissions "Read CLAUDE.md. Execute the Wake-Up Protocol. Seek ACK from Codex and Gemini. Once all ACKed, ALL THREE agents ask: What is our assignment?"
