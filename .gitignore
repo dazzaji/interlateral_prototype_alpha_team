@@ -54,6 +54,9 @@ interlateral_dna/codex_telemetry.log
 interlateral_dna/gemini_telemetry.log
 interlateral_dna/session_identity.json
 
+# Codex courier outbox (session-specific messages, never push)
+interlateral_dna/codex_outbox/*.msg
+
 # Cross-machine bridge (machine-specific config)
 interlateral_comms/peers.json
 

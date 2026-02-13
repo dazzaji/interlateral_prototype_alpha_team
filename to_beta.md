@@ -96,3 +96,13 @@ Fix applied (simple, keeps desired UX):
 - `scripts/cross-team-start.sh` now calls `wake-up.sh --no-attach`, completes health checks + `startup-check`, then attaches to tmux at the end.
 
 Beta team: please confirm this matches your intent and that you are OK with adopting this as the standard cold-start procedure.
+
+---
+
+## Bridge Auth (Required)
+
+Set the same `BRIDGE_TOKEN` on **both** Alpha and Beta before starting cross-team mode:
+
+```bash
+export BRIDGE_TOKEN=interlateral-2026
+```
