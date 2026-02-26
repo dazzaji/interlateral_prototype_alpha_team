@@ -5,7 +5,8 @@
   "main": "bridge.js",
   "scripts": {
     "start": "node bridge.js",
-    "test": "bash test/smoke-test.sh"
+    "test": "bash test/smoke-test.sh",
+    "strict": "node strict-relay-runner.js"
   },
   "dependencies": {
     "express": "^4.21.0"
