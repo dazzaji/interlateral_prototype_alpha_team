@@ -42,6 +42,7 @@ const agent = getArg('--agent', 'CX_StationAgent_01');
 const dryRun = hasFlag('--dry-run');
 
 const roundsArg = getArg('--rounds');
+const delimiter = getArg('--delimiter', '|');
 const mode = getArg('--mode', roundsArg ? 'rounds' : 'heartbeat');
 
 function nowIso() {
@@ -151,7 +152,7 @@ async function escalate(label, detail) {
 }
 
 function structuredReplyRegex(roundNum) {
-  return new RegExp(`\\[${agent}\\]\\[ROUND_${roundNum}_REPLY\\](?!\\s*\\.\\.\\.)`, 'i');
+  return new RegExp(`(?<!Reply as )\\[${agent}\\]\\[ROUND_${roundNum}_REPLY\\](?!\\s*\\.\\.\\.)`, 'i');
 }
 
 async function runHeartbeat() {
@@ -168,7 +169,7 @@ async function runHeartbeat() {
 
 async function runRounds() {
   const rounds = String(roundsArg || '')
-    .split('|')
+    .split(delimiter)
     .map((s) => s.trim())
     .filter(Boolean);
 
