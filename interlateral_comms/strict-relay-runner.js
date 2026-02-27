@@ -32,13 +32,13 @@ const commsPath = getArg(
   '--comms',
   path.join(__dirname, '..', 'interlateral_dna', 'comms.md')
 );
-const sender = getArg('--sender', process.env.INTERLATERAL_SENDER || 'CX_StationChief');
+const sender = getArg('--sender', process.env.INTERLATERAL_SENDER || 'CX_DeskChief');
 const team = getArg('--team', process.env.INTERLATERAL_TEAM_ID || 'codex-desktop-thread-a');
 const sid = getArg('--sid', `strict_${Date.now()}`);
 const ackTimeoutSec = parseInt(getArg('--ack-timeout-sec', '15'), 10);
 const retries = parseInt(getArg('--retries', '2'), 10);
 const pollMs = parseInt(getArg('--poll-ms', '1000'), 10);
-const agent = getArg('--agent', 'CX_StationAgent_01');
+const agent = getArg('--agent', 'CX_DeskAgent_01');
 const dryRun = hasFlag('--dry-run');
 
 const roundsArg = getArg('--rounds');
@@ -51,6 +51,10 @@ function nowIso() {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function readComms() {
@@ -151,8 +155,14 @@ async function escalate(label, detail) {
   console.error(msg);
 }
 
-function structuredReplyRegex(roundNum) {
-  return new RegExp(`(?<!Reply as )\\[${agent}\\]\\[ROUND_${roundNum}_REPLY\\](?!\\s*\\.\\.\\.)`, 'i');
+function structuredReplyRegex(roundNum, roundToken) {
+  const agentEsc = escapeRegExp(agent);
+  const tokenEsc = escapeRegExp(roundToken);
+  const senderEsc = escapeRegExp(sender);
+  return new RegExp(
+    `\\[ID [^\\n]*sender=(?!${senderEsc}\\b)[^\\n]*\\][^\\n]*\\[${agentEsc}\\]\\[ROUND_${roundNum}_REPLY\\](?!\\s*\\.\\.\\.)[^\\n]*\\[run_token=${tokenEsc}\\]`,
+    'i'
+  );
 }
 
 async function runHeartbeat() {
@@ -181,8 +191,9 @@ async function runRounds() {
   for (let idx = 0; idx < rounds.length; idx += 1) {
     const roundNum = idx + 1;
     const prompt = rounds[idx];
-    const msg = `[ID team=${team} sender=${sender} sid=${sid}] ROUND_${roundNum}: ${prompt} Reply as [${agent}][ROUND_${roundNum}_REPLY] with full content (no placeholders).`;
-    const ok = await sendWithAck(msg, structuredReplyRegex(roundNum), `ROUND_${roundNum}`);
+    const roundToken = `${sid}:r${roundNum}`;
+    const msg = `[ID team=${team} sender=${sender} sid=${sid}] ROUND_${roundNum}: ${prompt} Reply as [${agent}][ROUND_${roundNum}_REPLY] [run_token=${roundToken}] with full content (no placeholders).`;
+    const ok = await sendWithAck(msg, structuredReplyRegex(roundNum, roundToken), `ROUND_${roundNum}`);
     if (!ok) {
       await escalate(`ROUND_${roundNum}_TIMEOUT`, `no structured reply within SLA`);
       process.exit(2);

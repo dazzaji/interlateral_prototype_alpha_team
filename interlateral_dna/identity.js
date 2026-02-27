@@ -13,7 +13,7 @@ function getIdentity() {
     process.env.INTERLATERAL_SESSION_ID ||
     process.env.OTEL_SESSION_ID ||
     `session_${Date.now()}`;
-  const sender = process.env.INTERLATERAL_SENDER || 'unknown';
+  const sender = process.env.INTERLATERAL_SENDER || 'relay';
   return { hostname, team, sessionId, sender };
 }
 
@@ -40,4 +40,3 @@ module.exports = {
   stampMessage,
   logActor,
 };
-
